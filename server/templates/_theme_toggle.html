@@ -1,0 +1,56 @@
+{#- ---------------------------------------------------------------------
+    THE THEME TOGGLE - one macro for the topbar and the Settings rail, so
+    the two cannot drift; only the button chrome differs.
+
+    Basecoat's theme-switcher, with three deliberate changes:
+    1. NO onclick="window.basecoat.theme.toggle()": it writes localStorage,
+       which is prohibited here. base.html's controller writes the cookie.
+    2. NO `dark:` icon swap: those utilities are not compiled, and adding
+       them forces a build-css.bat run. .theme-icon-sun/-moon in app.css do
+       it, scoped under .theme-toggle so they cannot fight Tailwind's
+       .hidden.
+    3. NO `size-8`: not compiled here, so it would silently do nothing.
+
+    The icon shows where you are GOING (sun in dark mode), Basecoat's own
+    convention.
+    --------------------------------------------------------------------- -#}
+{% macro theme_toggle(placement, theme_dark) %}
+{#- The topbar variant matches its borderless neighbours (a bordered
+    square between circles reads as a mistake); Settings gets Basecoat's
+    outline button. Not `ghost`: its hover paints var(--color-muted), a
+    TEXT grey here, as a background. -#}
+{%- if placement == 'topbar' -%}
+    {%- set chrome = 'topbar-icon-btn theme-toggle relative inline-flex items-center justify-center rounded-full text-label hover:bg-subtle' -%}
+{%- else -%}
+    {%- set chrome = 'btn theme-toggle' -%}
+{%- endif -%}
+<button type="button"
+        data-theme-toggle
+        {% if placement != 'topbar' %}data-variant="outline" data-size="icon"{% endif %}
+        class="{{ chrome }}"
+        aria-pressed="{{ 'true' if theme_dark else 'false' }}"
+        aria-label="{{ 'Switch to light mode' if theme_dark else 'Switch to dark mode' }}"
+        data-tooltip="{{ 'Switch to light mode' if theme_dark else 'Switch to dark mode' }}"
+        data-side="bottom">
+    {#- Both icons stay in the DOM and CSS picks one: a JS swap would
+        flash the wrong glyph for a frame. -#}
+    <span class="theme-icon-sun" aria-hidden="true">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2" />
+            <path d="M12 20v2" />
+            <path d="m4.93 4.93 1.41 1.41" />
+            <path d="m17.66 17.66 1.41 1.41" />
+            <path d="M2 12h2" />
+            <path d="M20 12h2" />
+            <path d="m6.34 17.66-1.41 1.41" />
+            <path d="m19.07 4.93-1.41 1.41" />
+        </svg>
+    </span>
+    <span class="theme-icon-moon" aria-hidden="true">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+        </svg>
+    </span>
+</button>
+{% endmacro %}

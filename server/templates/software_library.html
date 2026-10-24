@@ -1,0 +1,2198 @@
+{% extends 'base.html' %}
+
+{% block title %}Software Library - AppEase{% endblock %}
+{% block page_title %}Software Library{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('dashboard') }}" class="rounded-md border border-field bg-canvas px-3 py-2 text-sm font-medium text-label hover:bg-subtle">Back to Dashboard</a>
+{% endblock %}
+
+{% block content %}
+{#- The overlays sit OUTSIDE the space-y-6 stack: its bottom margin
+    shrinks a fixed inset-0 box, leaving an undimmed strip at the bottom of
+    the screen. t/test_overlay_placement.py keeps it that way. #}
+
+    <!-- Loading overlay — shown when offline installer is being processed -->
+    <div id="loading-overlay" class="deploy-backdrop hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div class="rounded-xl bg-canvas px-8 py-6 text-center shadow-raised">
+            <div class="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-line border-t-primary"></div>
+            <p class="text-sm font-semibold text-ink">Adding Software...</p>
+            <p id="loading-msg" class="mt-1 text-xs text-muted">Detecting silent install flag from installer file.</p>
+        </div>
+    </div>
+
+    <!-- Duplicate-detection dialog: one element for both tiers ("exact" |
+         "name_only"); openDuplicateDialog() sets the copy and accent. -->
+    <div id="duplicate-dialog-overlay" class="deploy-backdrop hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div id="duplicate-dialog-card" class="w-full max-w-md rounded-xl border border-warn-strong bg-canvas p-6 shadow-raised">
+            <h4 id="duplicate-dialog-title" class="text-base font-semibold text-ink">Already in your library</h4>
+            <p id="duplicate-dialog-message" class="mt-2 text-sm text-ink-soft"></p>
+            <div class="mt-5 flex justify-end gap-2">
+                <button type="button" id="duplicate-dialog-cancel" class="rounded-md border border-field px-3 py-1.5 text-sm font-medium text-label hover:bg-subtle">Cancel</button>
+                <button type="button" id="duplicate-dialog-confirm" class="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90">Add anyway</button>
+            </div>
+        </div>
+    </div>
+    <!-- Detection outcome dialog. A FAILED detection offers Retry, since
+         the call broke and may yet succeed. An UNKNOWN one does not: the
+         API does not recognise the installer, so a retry would wait all
+         over again for the same nothing. -->
+    <div id="detect-dialog-overlay" class="deploy-backdrop hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div id="detect-dialog-card" class="w-full max-w-md rounded-xl border border-warn-strong bg-canvas p-6 shadow-raised">
+            <h4 id="detect-dialog-title" class="text-base font-semibold text-ink"></h4>
+            <p id="detect-dialog-message" class="mt-2 text-sm text-ink-soft"></p>
+            <div class="mt-5 flex items-center justify-end gap-2">
+                <button type="button" id="detect-dialog-dismiss" class="rounded-md border border-field px-3 py-1.5 text-sm font-medium text-label hover:bg-subtle">Fill in manually</button>
+                <button type="button" id="detect-dialog-retry" class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:opacity-90">Try again</button>
+            </div>
+        </div>
+    </div>
+
+<div class="space-y-6">
+
+    {% if error_message %}
+        <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ error_message | tojson }}, 'error'); });</script>
+    {% endif %}
+
+    {% if success_message %}
+        <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ success_message | tojson }}, 'success'); });</script>
+    {% endif %}
+
+    <section class="card">
+        <header>
+            <h3 class="card-title">Add New Software</h3>
+        </header>
+        {#- A <section>: only that slot gets the card's padding. -#}
+        <section>
+        <form id="add-software-form" method="post" action="{{ url_for('software_library') }}" enctype="multipart/form-data" class="space-y-4">
+            {% if duplicate_match %}
+                <!-- No-JS fallback for a duplicate bounce: with JS the
+                     dialog opens on top and drives the same checkbox;
+                     without it, this banner is the way to confirm. -->
+                <div class="rounded-lg border {% if duplicate_match == 'exact' %}banner-tone-warn{% else %}banner-tone-info{% endif %} px-4 py-3 text-sm">
+                    {% if duplicate_match == "exact" %}
+                        <p><strong>{{ form_name }} {{ form_version }}</strong> already exists in your software library. Adding it again creates a duplicate entry.</p>
+                    {% else %}
+                        <p>You already have <strong>{{ form_name }} {{ duplicate_existing_version }}</strong>. You're about to add <strong>{{ form_name }} {{ form_version }}</strong> as a separate entry.</p>
+                    {% endif %}
+                    <label class="mt-2 flex items-center gap-2">
+                        <input type="checkbox" id="confirm_duplicate" name="confirm_duplicate" value="1">
+                        <span>Yes, add it anyway - then click "Add Software" again to confirm.</span>
+                    </label>
+                </div>
+            {% else %}
+                <input type="hidden" id="confirm_duplicate" name="confirm_duplicate" value="">
+            {% endif %}
+            {#- Not a <p>: a <div> inside one closes it, leaving an empty
+                paragraph with a stray bottom margin. -#}
+            <div>
+                <input type="hidden" id="type" name="type" value="offline">
+                {#- A real tablist: a screen reader announces the selected
+                    source, and the pair is one tab stop. -#}
+                <div role="tablist" aria-label="Software source" class="inline-flex rounded-full border border-field bg-subtle p-1">
+                    <button type="button" role="tab" aria-selected="true" aria-controls="offline-fields"
+                            id="type-pill-offline" onclick="selectType('offline')"
+                            class="rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-white transition-colors">Local file</button>
+                    <button type="button" role="tab" aria-selected="false" aria-controls="online-fields"
+                            id="type-pill-online" onclick="selectType('online')"
+                            class="rounded-full px-4 py-1.5 text-sm font-medium text-muted transition-colors">Chocolatey</button>
+                </div>
+                <span class="mt-2 block text-xs text-muted">Chocolatey is fetched online; local files are stored on the server.</span>
+            </div>
+
+            <!-- ONE shared Name/Version/Category node, moved by JS into the
+                 active tab card, so the form never submits duplicates.
+                 Visible by default here for the no-JS fallback. -->
+
+            <div id="offline-fields" class="rounded-lg border border-line bg-canvas p-4">
+                <input type="hidden" id="detected_installer_path" name="detected_installer_path" value="{{ form_detected_installer_path or '' }}">
+                <input type="hidden" id="detected_confidence_tier" name="detected_confidence_tier" value="{{ form_detected_confidence_tier or '' }}">
+                <input type="file" id="installer_file" name="installer_file" accept=".exe,.msi" class="w-full text-sm">
+
+                <p>
+                    <label class="mb-1 block text-sm font-medium text-ink">Installer File (.exe or .msi) *</label>
+
+                    <!-- State 1: empty dropzone -->
+                    <div id="dropzone-empty" onclick="document.getElementById('installer_file').click()" class="cursor-pointer rounded-lg border-2 border-dashed border-field bg-canvas px-4 py-8 text-center transition-colors">
+                        <svg class="mx-auto mb-2 h-8 w-8 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+                        </svg>
+                        <p class="text-sm font-medium text-ink">Drop an installer here, or click to choose</p>
+                        <p class="mt-1 font-mono text-xs text-muted">.exe or .msi</p>
+                    </div>
+
+                    <!-- State 2: detecting -->
+                    <div id="dropzone-detecting" class="hidden rounded-lg border border-line bg-canvas px-4 py-6 text-center">
+                        <div class="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-line border-t-primary"></div>
+                        <p class="text-sm font-medium text-ink">Reading installer… large files can take a few minutes</p>
+                        <p id="detecting-filename" class="mt-1 text-xs text-muted"></p>
+                        <div class="dropzone-track mx-auto mt-3 h-1.5 w-full max-w-xs overflow-hidden rounded-full">
+                            <div class="h-full w-1/3 animate-pulse rounded-full bg-primary"></div>
+                        </div>
+                    </div>
+
+                    <!-- State 3: filled -->
+                    <div id="dropzone-filled" class="hidden rounded-lg border border-line bg-canvas px-4 py-3">
+                        <div class="flex items-center gap-3">
+                            <div class="min-w-0 flex-1">
+                                <span id="filled-filename" class="block truncate text-sm font-medium text-ink"></span>
+                                <span id="detect-status-msg" class="mt-0.5 block text-xs text-muted"></span>
+                            </div>
+                            {#- Confidence AT DETECTION, while it can
+                                still change the decision to add. -#}
+                            <span id="filled-tier" class="dt-pill hidden shrink-0" data-tone="neutral"></span>
+                            <button type="button" onclick="discardDetectedFile()" class="shrink-0 text-xs font-medium text-tone-bad hover:underline">✕ replace</button>
+                        </div>
+                    </div>
+
+                    <span id="dropzone-error" class="mt-2 hidden block text-xs text-tone-bad"></span>
+                </p>
+
+                <!-- Shown once detection finishes. Visible by default for
+                     the no-JS fallback; JS hides it until then. -->
+                <div id="local-detected-fields" class="mt-4">
+                    <div id="local-nvc-anchor">
+                        <div id="nvc-fields">
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <p>
+                                    <label for="name" class="mb-1 block text-sm font-medium text-ink">Name *</label>
+                                    <input type="text" id="name" name="name" value="{{ form_name or '' }}" required maxlength="50" oninput="validateName()" class="w-full rounded-lg border border-field px-3 py-2 text-sm focus:border-primary focus:outline-hidden focus:ring-2 focus:ring-primary/30" autocomplete="off">
+                                    <span id="name-char-count" class="mt-1 block text-xs text-muted">0 / 50 characters</span>
+                                    <span id="name-error" class="mt-1 block text-xs text-tone-bad hidden"></span>
+                                </p>
+
+                                <p>
+                                    <label for="version" class="mb-1 block text-sm font-medium text-ink">Version *</label>
+                                    <input type="text" id="version" name="version" value="{{ form_version or '' }}" required maxlength="30" oninput="validateVersion()" class="w-full rounded-lg border border-field px-3 py-2 text-sm focus:border-primary focus:outline-hidden focus:ring-2 focus:ring-primary/30" autocomplete="off">
+                                    <span id="version-char-count" class="mt-1 block text-xs text-muted">0 / 30 characters</span>
+                                    <span id="version-error" class="mt-1 block text-xs text-tone-bad hidden"></span>
+                                </p>
+                            </div>
+
+                            <p class="mt-4">
+                                <label for="category" class="mb-1 block text-sm font-medium text-ink">Category *</label>
+                                {#- The native select stays the source
+                                    of truth: it carries the field name
+                                    and every validator reads it. The icon
+                                    listbox writes back to it; with JS off
+                                    the select is all you get. -#}
+                                <span id="category-listbox" class="ael-wrap hidden block"></span>
+                                <select id="category" name="category" required onchange="validateCategory()" class="w-full rounded-lg border border-field px-3 py-2 text-sm focus:border-primary focus:outline-hidden focus:ring-2 focus:ring-primary/30">
+                                    <option value="" disabled {% if not form_category %}selected{% endif %}>-- Select category --</option>
+                                    {#- Built-ins, then admin-added
+                                        A-Z. -#}
+                                    {% for entry in categories %}
+                                        <option value="{{ entry.name }}" {% if form_category == entry.name %}selected{% endif %}>{{ entry.name }}</option>
+                                    {% endfor %}
+                                    <option value="__new__" {% if form_category == '__new__' %}selected{% endif %}>Choose to add...</option>
+                                </select>
+                                <span id="new-category-field" class="{% if form_category != '__new__' %}hidden {% endif %}mt-2 block">
+                                    <label for="new_category" class="mb-1 block text-sm font-medium text-ink">New category *</label>
+                                    <input type="text" id="new_category" name="new_category" maxlength="30" value="{{ form_new_category or '' }}" oninput="validateCategory()" class="w-full rounded-lg border border-field px-3 py-2 text-sm focus:border-primary focus:outline-hidden focus:ring-2 focus:ring-primary/30">
+                                    <span class="mt-1 block text-xs text-muted">Up to 30 characters: letters, numbers, spaces and / &amp; - . ( ) +. If it already exists, that one is used.</span>
+                                </span>
+                                <span id="category-error" class="mt-1 block text-xs text-tone-bad hidden"></span>
+                            </p>
+                        </div>
+                    </div>
+                    <p class="mt-3">
+                        <label for="silent_flag" class="mb-1 block text-sm font-medium text-ink">Silent Install Flag <span class="text-muted font-normal">(optional, auto-detected from file)</span></label>
+                        <input type="text" id="silent_flag" name="silent_flag" value="{{ form_silent_flag or '' }}" placeholder="Leave blank to auto-detect, or type to override e.g. /VERYSILENT /NORESTART" class="w-full rounded-lg border border-field bg-canvas px-3 py-2 text-sm focus:border-primary focus:outline-hidden focus:ring-2 focus:ring-primary/30">
+                    </p>
+                    {#- Pre-filled with only the allowed switches; editable
+                        before Add, never after. Hidden for an .msi, which
+                        uninstalls through msiexec. The server filters
+                        whatever is posted; the error only says so first. -#}
+                    <p class="mt-3{% if (form_detected_installer_path or '').lower().endswith('.msi') %} hidden{% endif %}" id="uninstall-switch-field">
+                        <label for="uninstall_switch" class="mb-1 block text-sm font-medium text-ink">Uninstall switch</label>
+                        <input type="text" id="uninstall_switch" name="uninstall_switch" value="{{ form_uninstall_switch or '' }}" autocomplete="off" oninput="validateUninstallSwitch()" class="w-full rounded-lg border border-field bg-canvas px-3 py-2 text-sm focus:border-primary focus:outline-hidden focus:ring-2 focus:ring-primary/30">
+                        <span class="mt-1 block text-xs text-muted">Pre-filled from Silent Install HQ. Allowed: /S, /SILENT, /VERYSILENT, /qn, /norestart. Used only if the program lists no quiet uninstall of its own. Fixed once the entry is added.</span>
+                        <span id="uninstall-switch-note" class="mt-1 hidden block text-xs text-muted">Silent Install HQ's suggestion isn't one of the allowed switches. Type one if you know it, or leave it empty.</span>
+                        <span id="uninstall-switch-error" class="mt-1 block text-xs text-tone-bad hidden"></span>
+                    </p>
+                </div>
+            </div>
+
+            <div id="online-fields" class="hidden rounded-lg border border-line bg-canvas p-4">
+                <p>
+                    <label for="package_name" class="mb-1 block text-sm font-medium text-ink">Chocolatey Package *</label>
+
+                    <!-- Step 1: search. The rest stays hidden until a
+                         package is chosen, as on the Local tab. -->
+                    <span id="choco-search-step" class="choco-field block">
+                        <input type="text" id="package_name" name="package_name" value="{{ form_package_name or '' }}" placeholder="Search Chocolatey, e.g. chrome, vlc, 7zip" autocomplete="off" class="w-full rounded-lg border border-field bg-canvas px-3 py-2 text-sm focus:border-primary focus:outline-hidden focus:ring-2 focus:ring-primary/30">
+                        <span id="choco-results" class="choco-results hidden"></span>
+                    </span>
+
+                    <!-- Step 2: picked. The same markup as #dropzone-filled,
+                         so the two tabs read as one control. Spans, not
+                         divs: this sits inside a <p>, which an HTML parser
+                         closes on the first <div>. -->
+                    <span id="choco-picked" class="hidden block rounded-lg border border-line bg-canvas px-4 py-3">
+                        <span class="flex items-center justify-between gap-2">
+                            <span id="choco-picked-id" class="truncate text-sm font-medium text-ink"></span>
+                            <button type="button" onclick="chocoClearPick()" class="shrink-0 text-xs font-medium text-tone-bad hover:underline">&#10005; change</button>
+                        </span>
+                        <span id="choco-picked-meta" class="mt-1 block text-xs text-muted"></span>
+                    </span>
+
+                    <span id="choco-status" class="mt-1 block text-xs hidden"></span>
+                    <span id="choco-search-hint" class="mt-1 block text-xs text-muted">Type at least 3 characters to search, or enter a package name yourself.</span>
+                    <span id="choco-version-note" class="mt-1 hidden block text-xs text-muted">Chocolatey installs the current version at deployment time; Version below records today's.</span>
+                </p>
+
+                <!-- Shown once a package is chosen; isNvcFieldsVisible()
+                     reads it to keep `required` in step. -->
+                <div id="online-detected-fields" class="mt-4">
+                    <div id="online-nvc-anchor"></div>
+                </div>
+            </div>
+
+            {#- One confirm for both tabs: selectType() rewrites
+                data-confirm-message, which base.html reads at click time. -#}
+            <button type="submit" id="add-software-btn" disabled
+                    data-confirm
+                    data-confirm-title="Add this software?"
+                    data-confirm-message="This adds the software to the library so it can be deployed to lab computers."
+                    data-confirm-action="Add software"
+                    class="btn disabled:opacity-40 disabled:cursor-not-allowed">Add Software</button>
+        </form>
+        </section>
+    </section>
+
+
+    {#- Bulk delete is PARTIAL, like the job bulk routes: an entry with a
+        queued or running job is skipped and reported, not a failed batch. -#}
+    <section class="card" data-dt-root data-dt-pagesize="10" data-dt-print
+             data-dt-searchlabel="Search software..." data-dt-filename="software-library"
+             data-dt-xlsx-url="{{ url_for('export_xlsx') }}"
+             data-dt-noun="entry" data-dt-noun-plural="entries" data-dt-idfield="software_ids"
+             data-print-section data-print-title="AppEase - Saved Software">
+        <header>
+            <h3 class="card-title">Saved Software</h3>
+            <p class="card-description">Every installer and package in the library.</p>
+        </header>
+        {% if software_items %}
+            <section>
+                <div class="dt-toolbar" data-dt-toolbar></div>
+
+                <div class="dt-table-wrap">
+                    <table class="dt-table" data-dt-table data-table>
+                        <thead>
+                            <tr>
+                                <th class="dt-col-select" data-dt-select data-print-skip>
+                                    <input type="checkbox" class="input" aria-label="Select all rows on this page" />
+                                </th>
+                                <th data-dt-sort data-dt-label="Name">Name</th>
+                                <th data-dt-sort data-dt-label="Version">Version</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Type">Type</th>
+                                <th data-dt-sort data-dt-label="Size">Size</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Category">Category</th>
+                                <th data-dt-sort data-dt-label="Install Command" data-print-skip>Install Command</th>
+                                {#- No facet: it would list one
+                                    timestamp per row. -#}
+                                <th data-dt-sort data-dt-daterange data-dt-label="Date Added">Date Added</th>
+                                <th class="dt-col-actions" data-dt-actions data-dt-label="Action" data-print-skip>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in software_items %}
+                                {#- The values ride along as
+                                    data-dt-field-*, so the drawer opens
+                                    filled with no round trip. -#}
+                                <tr data-dt-id="{{ item['id'] }}" data-dt-edit
+                                    data-dt-field-name="{{ item['name'] }}"
+                                    data-dt-field-version="{{ item['version'] or '' }}"
+                                    data-dt-field-category="{{ item['category'] or '' }}"
+                                    data-dt-field-exe="{{ '1' if item['type'] == 'offline' and not (item['install_command'] or '').lower().startswith('msiexec') else '' }}"
+                                    data-dt-field-uninstall-switch="{{ item['uninstall_switch'] or '' }}">
+                                    <td class="dt-col-select" data-print-skip>
+                                        <input type="checkbox" class="input" data-dt-check
+                                               value="{{ item['id'] }}" aria-label="Select {{ item['name'] }}" />
+                                    </td>
+                                    {#- The bare name, so sorting and
+                                        search ignore the badge. -#}
+                                    <td class="font-medium" data-sort="{{ item['name'] }}">
+                                        <div class="flex items-center gap-2">
+                                            <span class="truncate">{{ item["name"] }}</span>
+                                            {% if item["confidence_tier"] == "high" %}
+                                                <span class="dt-pill" data-tone="good" title="AppEase found this installer's silent-install setting automatically and matched it exactly. It should install on the lab computers with no windows or prompts appearing.">High confidence</span>
+                                            {% elif item["confidence_tier"] == "low" %}
+                                                <span class="dt-pill" data-tone="warn" title="AppEase found a silent-install setting for this installer but is not certain it is the right one. Deploy it to a single computer first and watch for any window or prompt before sending it to a whole lab.">Low confidence</span>
+                                            {% elif item["confidence_tier"] == "fallback" %}
+                                                <span class="dt-pill" data-tone="bad" title="No silent-install setting could be detected, so AppEase used the most common default for this installer type. It may open its normal setup window on the lab computer. Test it on one computer before deploying.">Unverified</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td class="font-mono text-xs">{{ item["version"] or "-" }}</td>
+                                    <td>
+                                        {% if item["type"] == "offline" %}
+                                            <span class="dt-pill" data-tone="info">Local</span>
+                                        {% elif item["type"] == "online" %}
+                                            <span class="dt-pill" data-tone="good">Chocolatey</span>
+                                        {% else %}
+                                            <span class="dt-pill" data-tone="neutral">{{ item["type"] }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-xs tabular-nums" data-sort="{{ item['file_size_bytes'] or 0 }}">{% if item["file_size_label"] %}{{ item["file_size_label"] }}{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                                    <td>{{ item["category"] or "-" }}</td>
+                                    <td class="font-mono text-xs" data-sort="{{ item['install_command'] }}">{{ item["install_command"] }}{% if item["uninstall_switch"] %}<span class="block text-muted">uninstall: {{ item["uninstall_switch"] }}</span>{% endif %}</td>
+                                    <td class="font-mono text-xs" data-sort="{{ item['date_added'] }}">{{ item["date_added"] | manila }}</td>
+                                    <td class="dt-col-actions" data-print-skip>
+                                        <button type="button" class="dt-row-menu" data-dt-rowmenu
+                                                data-dt-delete-url="{{ url_for('delete_software', software_id=item['id']) }}"
+                                                aria-haspopup="menu" aria-expanded="false"
+                                                aria-label="Actions for {{ item['name'] }}">
+                                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <p class="dt-empty hidden" data-dt-empty>No software matches the current filters.</p>
+                </div>
+
+                <div class="dt-footer" data-dt-footer></div>
+            </section>
+
+            {#- Export here too, where it is reached for with rows ticked;
+                both run the same exportScope(). -#}
+            <div class="dt-actionbar hidden" data-dt-actionbar role="region" aria-label="Bulk actions">
+                <span class="dt-actionbar-count">
+                    <span data-dt-count>0 selected</span>
+                    <button type="button" class="dt-actionbar-clear" data-dt-clear aria-label="Clear selection">&times;</button>
+                </span>
+                <span class="dt-actionbar-sep" aria-hidden="true"></span>
+                <button type="button" class="dt-btn" data-dt-export>Export</button>
+                <form method="POST" action="{{ url_for('bulk_delete_software') }}" data-dt-form>
+                    <button type="submit" class="dt-btn" data-tone="danger" data-dt-act="delete">Delete</button>
+                </form>
+            </div>
+
+            {#- The count reads in this table's own noun ("this entry"). -#}
+            <dialog id="sw-confirm-delete" class="alert-dialog" data-dt-confirm="delete"
+                    aria-labelledby="sw-confirm-delete-title" aria-describedby="sw-confirm-delete-desc">
+                <div>
+                    <header>
+                        <figure><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></figure>
+                        <h2 id="sw-confirm-delete-title">Delete <span data-dt-confirm-count>this entry</span>?</h2>
+                        <p id="sw-confirm-delete-desc">This removes the entry from the library and deletes its installer file. Past deployment records are kept and will show it as removed.</p>
+                    </header>
+                    <footer>
+                        <button type="button" class="btn" data-variant="outline" data-dt-confirm-cancel>Cancel</button>
+                        <button type="button" class="btn" data-variant="destructive" data-dt-confirm-ok>Delete</button>
+                    </footer>
+                </div>
+            </dialog>
+        {% else %}
+            <section>
+                <p class="text-sm text-muted">No software in the library yet.</p>
+            </section>
+        {% endif %}
+    </section>
+
+    {#- Edit drawer: Name, Version and Category only. Type, command and
+        tier describe what was actually detected; typing over them would let
+        a row claim a silent-install setting nobody detected. -#}
+    <dialog id="sw-edit-drawer" class="drawer" data-side="right"
+            aria-labelledby="sw-edit-title" aria-describedby="sw-edit-description">
+        <article>
+            <header>
+                <h2 id="sw-edit-title">Edit software</h2>
+                <p id="sw-edit-description">Update the details and save the changes.</p>
+            </header>
+            <section class="px-4">
+                <form method="POST" id="sw-edit-form" class="sw-edit-fields">
+                    <div role="group" class="field">
+                        <label for="sw-edit-name">Name</label>
+                        <input class="input" id="sw-edit-name" name="name" type="text"
+                               maxlength="50" required autocomplete="off" placeholder="e.g. VLC media player" />
+                        <p class="text-xs text-muted" id="sw-edit-name-error"></p>
+                    </div>
+                    <div role="group" class="field">
+                        <label for="sw-edit-version">Version</label>
+                        <input class="input" id="sw-edit-version" name="version" type="text"
+                               maxlength="30" required autocomplete="off" placeholder="e.g. 3.0.20" />
+                        <p class="text-xs text-muted" id="sw-edit-version-error"></p>
+                    </div>
+                    <div role="group" class="field">
+                        <label for="sw-edit-category">Category</label>
+                        {#- Native: the Basecoat select needs a JS
+                            bundle this page does not load. -#}
+                        <select class="input" id="sw-edit-category" name="category" required>
+                            <option value="" disabled>-- Select category --</option>
+                            {% for entry in categories %}
+                                <option value="{{ entry.name }}">{{ entry.name }}</option>
+                            {% endfor %}
+                            <option value="__new__">Choose to add...</option>
+                        </select>
+                    </div>
+                    <div role="group" class="field hidden" id="sw-edit-new-category-field">
+                        <label for="sw-edit-new-category">New category</label>
+                        <input class="input" type="text" id="sw-edit-new-category" name="new_category" maxlength="30">
+                        <p class="text-xs text-muted">Up to 30 characters: letters, numbers, spaces and / &amp; - . ( ) +. If it already exists, that one is used.</p>
+                        <p class="text-xs text-muted" id="sw-edit-new-category-error"></p>
+                    </div>
+                    {#- Read-only: fixed once added; the edit route never
+                        writes it. Uploaded .exe only: an .msi uninstalls
+                        through msiexec, a package through choco. -#}
+                    <div role="group" class="field hidden" id="sw-edit-switch-group">
+                        <label id="sw-edit-switch-label">Uninstall switch</label>
+                        <p class="text-sm text-muted" id="sw-edit-switch" aria-labelledby="sw-edit-switch-label"></p>
+                    </div>
+                </form>
+            </section>
+            <footer>
+                <button type="button" class="btn" data-variant="outline" data-sw-drawer-close>Cancel</button>
+                <button type="submit" form="sw-edit-form" class="btn" id="sw-edit-save">Save</button>
+            </footer>
+        </article>
+    </dialog>
+</div>
+
+<script>
+    // An emoji is a surrogate pair (spread length differs) or a misc symbol.
+    function hasEmoji(str) {
+        return str.length !== [...str].length || /[\u2600-\u27BF]/.test(str);
+    }
+
+    // Shared validator — returns error key or null
+    function checkField(val, minLen, maxLen, charPattern) {
+        if (!val) return 'required';
+        if (val.length < minLen) return 'short';
+        if (val.length > maxLen) return 'long';
+        if (/  /.test(val)) return 'spaces';
+        if (/(.)\1{3,}/.test(val)) return 'repeat';
+        if (hasEmoji(val)) return 'emoji';
+        if (!charPattern.test(val)) return 'chars';
+        return null;
+    }
+
+    function applyFieldUI(inputId, errorId, countId, error, maxLen, msgs) {
+        var input = document.getElementById(inputId);
+        var errorEl = document.getElementById(errorId);
+        var countEl = document.getElementById(countId);
+        countEl.textContent = input.value.length + ' / ' + maxLen + ' characters';
+        if (error) {
+            errorEl.textContent = msgs[error] || 'Invalid input.';
+            errorEl.classList.remove('hidden');
+            input.classList.add('border-danger');
+            input.classList.remove('border-field');
+        } else {
+            errorEl.textContent = '';
+            errorEl.classList.add('hidden');
+            input.classList.remove('border-danger');
+            input.classList.add('border-field');
+        }
+    }
+
+    // "Choose to add..." and the rule for what may be typed after it. The
+    // same rule as clean_category_name() in app.py, which is the authority;
+    // the edit drawer below uses this function too.
+    var NEW_CATEGORY_VALUE = '__new__';
+
+    function newCategoryError(raw) {
+        var value = (raw || '').trim().replace(/\s+/g, ' ');
+        if (!value) { return 'Type a name for the new category.'; }
+        if (value.length < 2 || value.length > 30) { return 'A category name must be 2 to 30 characters.'; }
+        if (!/^[A-Za-z0-9][A-Za-z0-9 \/&\-.()+]*$/.test(value)) {
+            return 'A category name can only contain letters, numbers, spaces and / & - . ( ) +, ' +
+                   'and must start with a letter or number.';
+        }
+        return null;
+    }
+
+    function categoryIsComplete(select, input) {
+        if (!select.value) { return false; }
+        return select.value !== NEW_CATEGORY_VALUE || !newCategoryError(input.value);
+    }
+
+    function checkAllValid() {
+        var nameVal = document.getElementById('name').value;
+        var versionVal = document.getElementById('version').value;
+        // True once a category is chosen, or "Choose to add..." with a
+        // valid name.
+        var categoryVal = categoryIsComplete(document.getElementById('category'),
+                                             document.getElementById('new_category'));
+        var nameErr = document.getElementById('name-error').textContent;
+        var versionErr = document.getElementById('version-error').textContent;
+        var allOk = nameVal.length >= 2 && !nameErr &&
+                    versionVal.length >= 2 && !versionErr &&
+                    !!categoryVal && !uninstallSwitchBlocks();
+        document.getElementById('add-software-btn').disabled = !allOk;
+    }
+
+    function validateName() {
+        var val = document.getElementById('name').value;
+        var error = checkField(val, 2, 50, /^[a-zA-Z0-9 .+\-_()\[\]]+$/);
+        applyFieldUI('name', 'name-error', 'name-char-count', error, 50, {
+            required: 'Name is required.',
+            short:    'Name must be at least 2 characters.',
+            long:     'Name must be 50 characters or fewer.',
+            spaces:   'Name cannot contain consecutive spaces.',
+            repeat:   'Name cannot have more than 3 consecutive identical characters.',
+            emoji:    'Name cannot contain emojis.',
+            chars:    'Name can only contain letters, numbers, spaces, and . + - _ ( ) [ ] characters.'
+        });
+        checkAllValid();
+    }
+
+    function validateVersion() {
+        var val = document.getElementById('version').value;
+        var error = checkField(val, 2, 30, /^[a-zA-Z0-9 .+\-]+$/);
+        applyFieldUI('version', 'version-error', 'version-char-count', error, 30, {
+            required: 'Version is required.',
+            short:    'Version must be at least 2 characters.',
+            long:     'Version must be 30 characters or fewer.',
+            spaces:   'Version cannot contain consecutive spaces.',
+            repeat:   'Version cannot have more than 3 consecutive identical characters.',
+            emoji:    'Version cannot contain emojis.',
+            chars:    'Version can only contain letters, numbers, dots, hyphens, plus signs, and spaces.'
+        });
+        checkAllValid();
+    }
+
+    // The Uninstall switch. The same list as the server's
+    // UNINSTALL_SWITCH_ALLOWED; anything else keeps Add disabled and says
+    // why. The server drops anything else anyway - this only says so first.
+    var UNINSTALL_SWITCHES = ['/S', '/SILENT', '/VERYSILENT', '/qn', '/norestart'];
+    var UNINSTALL_SWITCH_ERROR = 'Only /S, /SILENT, /VERYSILENT, /qn and /norestart are allowed here.';
+
+    function validateUninstallSwitch() {
+        var input = document.getElementById('uninstall_switch');
+        var errorEl = document.getElementById('uninstall-switch-error');
+        if (!input || !errorEl) { return; }
+        var allowed = UNINSTALL_SWITCHES.map(function (s) { return s.toLowerCase(); });
+        var refused = (input.value || '').split(/\s+/).filter(function (token) {
+            return token && allowed.indexOf(token.toLowerCase()) === -1;
+        });
+        if (refused.length) {
+            errorEl.textContent = UNINSTALL_SWITCH_ERROR;
+            errorEl.classList.remove('hidden');
+            input.classList.add('border-danger');
+            input.classList.remove('border-field');
+        } else {
+            errorEl.textContent = '';
+            errorEl.classList.add('hidden');
+            input.classList.remove('border-danger');
+            input.classList.add('border-field');
+        }
+        checkAllValid();
+    }
+
+    // True while the switch field is on screen and holds something refused.
+    function uninstallSwitchBlocks() {
+        var field = document.getElementById('uninstall-switch-field');
+        var errorEl = document.getElementById('uninstall-switch-error');
+        if (!field || !errorEl) { return false; }
+        return document.getElementById('type').value === 'offline'
+            && !field.classList.contains('hidden') && !!errorEl.textContent;
+    }
+
+    function showUninstallSwitchNote(show) {
+        var switchNote = document.getElementById('uninstall-switch-note');
+        if (switchNote) { switchNote.classList.toggle('hidden', !show); }
+    }
+
+    // An .msi uninstalls through msiexec, so the field is hidden - and
+    // emptied, so nothing hidden is posted - for one.
+    function showUninstallSwitchField(show) {
+        var field = document.getElementById('uninstall-switch-field');
+        if (!field) { return; }
+        field.classList.toggle('hidden', !show);
+        if (!show) {
+            document.getElementById('uninstall_switch').value = '';
+            detectFilledUninstall = '';
+            showUninstallSwitchNote(false);
+        }
+        validateUninstallSwitch();
+    }
+
+    function validateCategory() {
+        var input = document.getElementById('category');
+        var errorEl = document.getElementById('category-error');
+        // "Choose to add..." opens the name field under the list. Its rule is
+        // only shown once something has been typed - picking the option is
+        // not yet a mistake - but the Add button waits for a valid name.
+        var field = document.getElementById('new-category-field');
+        var newInput = document.getElementById('new_category');
+        var adding = input.value === NEW_CATEGORY_VALUE;
+        if (field) {
+            var opening = adding && field.classList.contains('hidden');
+            field.classList.toggle('hidden', !adding);
+            if (opening) { newInput.focus(); }
+        }
+        var newMessage = adding && newInput.value.trim() ? newCategoryError(newInput.value) : null;
+        if (newMessage) {
+            errorEl.textContent = newMessage;
+            errorEl.classList.remove('hidden');
+            newInput.classList.add('border-danger');
+            newInput.classList.remove('border-field');
+            checkAllValid();
+            return;
+        }
+        newInput.classList.remove('border-danger');
+        newInput.classList.add('border-field');
+        if (!input.value) {
+            errorEl.textContent = 'Category is required.';
+            errorEl.classList.remove('hidden');
+            input.classList.add('border-danger');
+            input.classList.remove('border-field');
+        } else {
+            errorEl.textContent = '';
+            errorEl.classList.add('hidden');
+            input.classList.remove('border-danger');
+            input.classList.add('border-field');
+        }
+        checkAllValid();
+    }
+
+    // ---- Category listbox --------------------------------------------------
+    //
+    // A native option cannot hold an image, so the icons need a real
+    // listbox: a THIN SHELL over the native select. Every pick writes its
+    // value and dispatches `change`, so every validator keeps working and
+    // the form still submits one category field.
+    //
+    // Keys match deploy-panel.js's CATEGORY_ICONS; an admin-added category
+    // gets the generic icon. File names match static/img/ exactly, case
+    // included - Linux will not serve Security.png for security.png. A
+    // failed load empties the slot, leaving a plain label.
+    var CATEGORY_ICON_BASE = {{ url_for('static', filename='img/') | tojson }};
+    var CATEGORY_ICONS = {
+        'Browser':               'browser.png',
+        'Development / IDE':     'development.png',
+        'Multimedia':            'multimedia.png',
+        'Office / Productivity': 'office.png',
+        'Utility':               'utility.png',
+        'Security / Antivirus':  'security.png',
+        'Networking':            'networking.png',
+        'Design / Graphics':     'design.png',
+        'Virtualization':        'virtualization.png',
+        'Runtime / Framework':   'runtime.png'
+    };
+    var categoryListboxActive = false;
+
+    function categoryIconNode(value) {
+        var slot = document.createElement('span');
+        slot.className = 'ael-icon';
+        if (value === NEW_CATEGORY_VALUE) {
+            slot.textContent = '+';
+            return slot;
+        }
+        var file = value ? (CATEGORY_ICONS[value] || 'other.png') : '';
+        if (!file) {
+            return slot;
+        }
+        var img = document.createElement('img');
+        img.className = 'ael-icon';
+        img.src = CATEGORY_ICON_BASE + file;
+        img.alt = '';
+        img.setAttribute('aria-hidden', 'true');
+        img.onerror = function () {
+            if (img.parentNode) {
+                img.parentNode.replaceChild(slot, img);
+            }
+        };
+        return img;
+    }
+
+    function buildCategoryListbox() {
+        var select = document.getElementById('category');
+        var host = document.getElementById('category-listbox');
+        if (!select || !host) {
+            return;
+        }
+
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.id = 'category-listbox-btn';
+        // `flex` already exists in the build; ael-* are plain app.css. No
+        // `display` in app.css for either, so nothing out-ranks hidden.
+        button.className = 'ael-btn flex';
+        button.setAttribute('aria-haspopup', 'listbox');
+        button.setAttribute('aria-expanded', 'false');
+        button.setAttribute('aria-labelledby', 'category-listbox-btn');
+
+        var menu = document.createElement('div');
+        menu.id = 'category-listbox-menu';
+        menu.className = 'ael-menu hidden';
+        menu.setAttribute('role', 'listbox');
+
+        var optionButtons = [];
+        Array.prototype.forEach.call(select.options, function (option) {
+            if (!option.value) {
+                return;
+            }
+            if (option.value === NEW_CATEGORY_VALUE) {
+                // A rule above "Choose to add...", so it reads as an action
+                // rather than one more category.
+                var rule = document.createElement('div');
+                rule.className = 'border-t border-line';
+                rule.style.margin = '4px 0';
+                rule.setAttribute('aria-hidden', 'true');
+                menu.appendChild(rule);
+            }
+            var row = document.createElement('button');
+            row.type = 'button';
+            row.className = 'ael-opt flex';
+            row.setAttribute('role', 'option');
+            row.setAttribute('data-value', option.value);
+            row.setAttribute('aria-selected', 'false');
+            row.appendChild(categoryIconNode(option.value));
+            var text = document.createElement('span');
+            text.textContent = option.text;
+            row.appendChild(text);
+            row.addEventListener('click', function () {
+                pickCategory(option.value);
+            });
+            optionButtons.push(row);
+            menu.appendChild(row);
+        });
+
+        function paintButton() {
+            var value = select.value;
+            button.innerHTML = '';
+            button.appendChild(categoryIconNode(value));
+            var text = document.createElement('span');
+            if (value) {
+                // The option's label, not its value: "Choose to add..." is
+                // posted as __new__.
+                text.textContent = select.options[select.selectedIndex].text;
+            } else {
+                text.textContent = '-- Select category --';
+                text.className = 'ael-placeholder';
+            }
+            button.appendChild(text);
+            var caret = document.createElement('span');
+            caret.className = 'ael-caret';
+            caret.textContent = '\u25BE';
+            caret.setAttribute('aria-hidden', 'true');
+            button.appendChild(caret);
+            optionButtons.forEach(function (row) {
+                row.setAttribute('aria-selected', row.getAttribute('data-value') === value ? 'true' : 'false');
+            });
+            // validateCategory() marks the hidden select, so mirror it onto
+            // the control you can actually see.
+            button.classList.toggle('ael-invalid', !value && select.classList.contains('border-danger'));
+        }
+
+        /* position: fixed, placed from the button's rect: the .card is
+         * overflow: hidden and would clip an absolute menu. Downward when it
+         * fits, else toward the roomier side, with max-height capped to that
+         * room so the last option is reachable. The ceiling is the sticky
+         * topbar, so an upward menu never runs under it. */
+        function menuCeiling() {
+            var topbar = document.querySelector('.app-topbar');
+            return (topbar ? topbar.getBoundingClientRect().bottom : 0) + 8;
+        }
+
+        function placeMenu() {
+            var box = button.getBoundingClientRect();
+            var below = window.innerHeight - 8 - (box.bottom + 4);
+            var above = box.top - 4 - menuCeiling();
+            // Cleared first, so this measures the menu at its stylesheet
+            // max-height rather than at whatever the last placement set.
+            menu.style.maxHeight = '';
+            var natural = menu.offsetHeight;
+            var upward = below < natural && above > below;
+            var room = upward ? above : below;
+            menu.style.maxHeight = Math.max(Math.min(natural, room), 120) + 'px';
+            menu.style.left = box.left + 'px';
+            menu.style.width = box.width + 'px';
+            menu.style.top = (upward ? box.top - 4 - menu.offsetHeight : box.bottom + 4) + 'px';
+        }
+
+        function openMenu() {
+            menu.classList.remove('hidden');
+            // Placed BEFORE the browser paints, so it never flashes at the
+            // wrong edge first.
+            placeMenu();
+            button.setAttribute('aria-expanded', 'true');
+            var selected = menu.querySelector('[aria-selected="true"]');
+            (selected || optionButtons[0]).focus();
+        }
+
+        function closeMenu(refocus) {
+            menu.classList.add('hidden');
+            button.setAttribute('aria-expanded', 'false');
+            if (refocus) {
+                button.focus();
+            }
+        }
+
+        function pickCategory(value) {
+            select.value = value;
+            // The select is hidden, so nothing fires for it on its own.
+            // validateCategory() + checkAllValid() run through the existing
+            // handler rather than being called directly, so there is still one
+            // path from "a category was chosen" to "the button is enabled".
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            paintButton();
+            closeMenu(true);
+        }
+
+        button.addEventListener('click', function () {
+            if (menu.classList.contains('hidden')) {
+                openMenu();
+            } else {
+                closeMenu(true);
+            }
+        });
+
+        // Arrow keys inside the menu, Escape anywhere in it. A native select
+        // gives this for free; a custom one has to be told.
+        menu.addEventListener('keydown', function (event) {
+            var index = optionButtons.indexOf(document.activeElement);
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                var next = index + (event.key === 'ArrowDown' ? 1 : -1);
+                if (next < 0) { next = optionButtons.length - 1; }
+                if (next >= optionButtons.length) { next = 0; }
+                optionButtons[next].focus();
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                closeMenu(true);
+            }
+        });
+
+        button.addEventListener('keydown', function (event) {
+            if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openMenu();
+            }
+        });
+
+        document.addEventListener('click', function (event) {
+            if (!host.contains(event.target)) {
+                closeMenu(false);
+            }
+        });
+
+        // A fixed menu does not move with the page, so it follows the button
+        // instead - and closes once the button scrolls out from under it,
+        // past the topbar or off the bottom, since there is nothing left to
+        // anchor to. Capture phase, so a scroll in any container counts, not
+        // just the window's; the list scrolling itself is ignored.
+        function followButton(event) {
+            if (menu.classList.contains('hidden')) {
+                return;
+            }
+            if (event.type === 'scroll' && menu.contains(event.target)) {
+                return;
+            }
+            var box = button.getBoundingClientRect();
+            if (box.bottom < menuCeiling() || box.top > window.innerHeight) {
+                closeMenu(false);
+                return;
+            }
+            placeMenu();
+        }
+        window.addEventListener('scroll', followButton, true);
+        window.addEventListener('resize', followButton);
+
+        // Keeps the visible control honest when something else moves the
+        // select: the duplicate-bounce restore, or a future caller.
+        select.addEventListener('change', paintButton);
+
+        host.appendChild(button);
+        host.appendChild(menu);
+        host.classList.remove('hidden');
+        select.classList.add('hidden');
+        categoryListboxActive = true;
+        syncNvcRequired();
+        paintButton();
+    }
+
+    // Drives the hidden #type input ("offline" / "online"). A confirm earns
+    // its keep here: an uploaded installer is stored now, while a package is
+    // a name fetched at deploy time, so a wrong one fails later on every
+    // computer at once.
+    function syncAddSoftwareConfirm(value) {
+        var button = document.getElementById('add-software-btn');
+        if (!button) { return; }
+        if (value === 'offline') {
+            button.setAttribute(
+                'data-confirm-message',
+                'The installer you picked will be uploaded to the server and stored there, ready to deploy to lab computers.'
+            );
+        } else {
+            button.setAttribute(
+                'data-confirm-message',
+                'This saves the Chocolatey package name. Nothing is downloaded now - each computer fetches it at deploy time, so a wrong name fails on every computer instead of here.'
+            );
+        }
+    }
+
+    function selectType(value) {
+        var previous = document.getElementById('type').value;
+        document.getElementById('type').value = value;
+        syncAddSoftwareConfirm(value);
+
+        // Leaving a tab takes its auto-filled values with it: they describe
+        // something you are no longer adding. Typed values survive.
+        if (previous && previous !== value) {
+            if (previous === 'offline') {
+                clearDetectAutofills();
+            } else {
+                clearChocoAutofills();
+            }
+        }
+
+        var offlinePill = document.getElementById('type-pill-offline');
+        var onlinePill = document.getElementById('type-pill-online');
+        var activeClasses = ['bg-primary', 'text-white'];
+        var inactiveClasses = ['text-muted'];
+
+        if (value === 'offline') {
+            offlinePill.classList.add.apply(offlinePill.classList, activeClasses);
+            offlinePill.classList.remove.apply(offlinePill.classList, inactiveClasses);
+            onlinePill.classList.remove.apply(onlinePill.classList, activeClasses);
+            onlinePill.classList.add.apply(onlinePill.classList, inactiveClasses);
+        } else {
+            onlinePill.classList.add.apply(onlinePill.classList, activeClasses);
+            onlinePill.classList.remove.apply(onlinePill.classList, inactiveClasses);
+            offlinePill.classList.remove.apply(offlinePill.classList, activeClasses);
+            offlinePill.classList.add.apply(offlinePill.classList, inactiveClasses);
+        }
+
+        // aria-selected must move with the styling, or a screen reader keeps
+        // announcing Local file. Anything not 'offline' is online.
+        //
+        // Do not write the literal tab role attribute in this comment:
+        // test_software_autofill.py counts that substring across the whole
+        // served page and expects exactly two, one per pill.
+        offlinePill.setAttribute('aria-selected', value === 'offline' ? 'true' : 'false');
+        onlinePill.setAttribute('aria-selected', value === 'offline' ? 'false' : 'true');
+
+        toggleTypeFields();
+    }
+
+    function toggleTypeFields() {
+        var typeValue = document.getElementById("type").value;
+        var offlineFields = document.getElementById("offline-fields");
+        var onlineFields = document.getElementById("online-fields");
+        var packageName = document.getElementById("package_name");
+
+        if (typeValue === "offline") {
+            offlineFields.classList.remove("hidden");
+            onlineFields.classList.add("hidden");
+            packageName.required = false;
+        } else if (typeValue === "online") {
+            offlineFields.classList.add("hidden");
+            onlineFields.classList.remove("hidden");
+            // Required only while the search box is on screen: a hidden
+            // required field refuses to submit while focusing nothing.
+            packageName.required = (typeof chocoStep === "undefined" || chocoStep === "search");
+        } else {
+            offlineFields.classList.add("hidden");
+            onlineFields.classList.add("hidden");
+            packageName.required = false;
+        }
+
+        moveNvcFields();
+    }
+
+    // ONE Name/Version/Category node (#nvc-fields), moved into the active
+    // tab card rather than duplicated, so the form never submits
+    // duplicates. On Local, a finished detection survives a tab round trip.
+    function moveNvcFields() {
+        var typeValue = document.getElementById("type").value;
+        var nvcFields = document.getElementById("nvc-fields");
+        var localAnchor = document.getElementById("local-nvc-anchor");
+        var onlineAnchor = document.getElementById("online-nvc-anchor");
+
+        if (typeValue === "online") {
+            onlineAnchor.appendChild(nvcFields);
+        } else {
+            localAnchor.appendChild(nvcFields);
+        }
+
+        syncNvcRequired();
+        checkAllValid();
+    }
+
+    // Hidden required fields silently block native form submission ("an
+    // invalid form control is not focusable"), so `required` is toggled in
+    // lockstep with visibility rather than relying on display:none alone.
+    function setNvcRequired(isRequired) {
+        document.getElementById("name").required = isRequired;
+        document.getElementById("version").required = isRequired;
+        // Under the icon listbox the select is hidden, so not `required`.
+        // The category is still compulsory: Add stays disabled until
+        // checkAllValid() sees one, and the route rejects unknown ones.
+        document.getElementById("category").required = isRequired && !categoryListboxActive;
+    }
+
+    function isNvcFieldsVisible() {
+        if (document.getElementById("type").value === "online") {
+            // The fields are revealed per step, so track the real state.
+            return !document.getElementById("online-detected-fields").classList.contains("hidden");
+        }
+        return !document.getElementById("local-detected-fields").classList.contains("hidden");
+    }
+
+    function syncNvcRequired() {
+        setNvcRequired(isNvcFieldsVisible());
+    }
+
+    // installer_file is not `required`: JS hides it once the dropzone takes
+    // over, and a hidden required input blocks submission. The submit
+    // handler and the server check guard it instead.
+
+    // Dropzone state machine: one of the three states visible at a time.
+    function showDropzoneState(state) {
+        document.getElementById('dropzone-empty').classList.toggle('hidden', state !== 'empty');
+        document.getElementById('dropzone-detecting').classList.toggle('hidden', state !== 'detecting');
+        document.getElementById('dropzone-filled').classList.toggle('hidden', state !== 'filled');
+
+        // Name/Version/Category + Silent Flag only appear once detection
+        // finishes (State 3) — hidden again on State 1 ('empty', e.g. after
+        // ✕ replace) or State 2 ('detecting').
+        document.getElementById('local-detected-fields').classList.toggle('hidden', state !== 'filled');
+
+        /* Confidence badge, read from the same hidden field the form
+         * submits, so the badge and the stored value can never disagree.
+         * Hidden when there is no tier rather than showing an empty pill -
+         * an unlabelled badge reads as a rendering fault. */
+        var tierBadge = document.getElementById('filled-tier');
+        if (tierBadge) {
+            var tier = (document.getElementById('detected_confidence_tier').value || '').toLowerCase();
+            var TIERS = {
+                high: ['High confidence', 'good'],
+                medium: ['Medium confidence', 'warn'],
+                low: ['Low confidence', 'warn'],
+                unverified: ['Unverified', 'neutral']
+            };
+            var found = TIERS[tier];
+            if (state === 'filled' && found) {
+                tierBadge.textContent = found[0];
+                tierBadge.setAttribute('data-tone', found[1]);
+                tierBadge.classList.remove('hidden');
+            } else {
+                tierBadge.classList.add('hidden');
+            }
+        }
+
+        syncNvcRequired();
+        checkAllValid();
+    }
+
+    function showDropzoneError(text) {
+        var errorEl = document.getElementById('dropzone-error');
+        errorEl.textContent = text;
+        errorEl.classList.remove('hidden');
+    }
+
+    function hideDropzoneError() {
+        var errorEl = document.getElementById('dropzone-error');
+        errorEl.textContent = '';
+        errorEl.classList.add('hidden');
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    // Show loading overlay on form submit (only for offline type)
+    var addForm = document.getElementById("add-software-form");
+    var confirmDuplicateField = document.getElementById("confirm_duplicate");
+    // Set right before a programmatic resubmit, so it is not re-fetched.
+    var skipDuplicateCheck = false;
+
+    // confirm_duplicate renders as a hidden input normally, but as a visible
+    // checkbox (no-JS fallback) on a bounce-back page — these two helpers
+    // let the rest of the JS treat both the same way.
+    function isConfirmDuplicateSet() {
+        if (confirmDuplicateField.type === 'checkbox') return confirmDuplicateField.checked;
+        return confirmDuplicateField.value === '1';
+    }
+    function setConfirmDuplicate(flag) {
+        if (confirmDuplicateField.type === 'checkbox') {
+            confirmDuplicateField.checked = flag;
+        } else {
+            confirmDuplicateField.value = flag ? '1' : '';
+        }
+    }
+
+    function showLoadingOverlay(typeVal) {
+        var overlay = document.getElementById("loading-overlay");
+        var loadingMsg = document.getElementById("loading-msg");
+        if (typeVal === "offline") {
+            loadingMsg.textContent = "Detecting silent install flag from installer file. This may take a few seconds...";
+        } else {
+            loadingMsg.textContent = "Saving software to library...";
+        }
+        overlay.classList.remove("hidden");
+    }
+
+    function resubmitForm() {
+        if (addForm.requestSubmit) {
+            addForm.requestSubmit();
+        } else {
+            // Older browsers: requestSubmit() isn't available, so fire the
+            // loading overlay directly since addForm.submit() bypasses the
+            // 'submit' event entirely.
+            showLoadingOverlay(document.getElementById("type").value);
+            addForm.submit();
+        }
+    }
+
+    // Duplicate dialog: tier-specific copy, shared markup. The server guard
+    // is the real net either way.
+    function openDuplicateDialog(tier, existingVersion) {
+        var card = document.getElementById('duplicate-dialog-card');
+        var title = document.getElementById('duplicate-dialog-title');
+        var message = document.getElementById('duplicate-dialog-message');
+        var confirmBtn = document.getElementById('duplicate-dialog-confirm');
+        var nameVal = document.getElementById('name').value.trim();
+        var versionVal = document.getElementById('version').value.trim();
+
+        card.classList.remove('border-warn-strong', 'border-blue-500');
+
+        if (tier === 'name_only') {
+            card.classList.add('border-blue-500');
+            title.textContent = 'A different version exists';
+            message.textContent = 'You already have ' + nameVal + ' ' + (existingVersion || '') +
+                ' in your library. You\'re about to add ' + nameVal + ' ' + versionVal +
+                ' as a separate entry. Continue?';
+            confirmBtn.textContent = 'Add this version';
+            confirmBtn.className = 'rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:opacity-90';
+        } else {
+            card.classList.add('border-warn-strong');
+            title.textContent = 'Already in your library';
+            message.textContent = nameVal + ' ' + versionVal +
+                ' already exists in your software library. Adding it again creates a duplicate entry.';
+            confirmBtn.textContent = 'Add anyway';
+            confirmBtn.className = 'rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90';
+        }
+
+        var overlay = document.getElementById('duplicate-dialog-overlay');
+        if (duplicateDialogCloseTimer !== null) {
+            window.clearTimeout(duplicateDialogCloseTimer);
+            duplicateDialogCloseTimer = null;
+        }
+        overlay.classList.remove('hidden');
+        // Force a reflow so the opacity:0 start state is painted before
+        // .modal-open lands, or the transition is skipped entirely.
+        void overlay.offsetWidth;
+        overlay.classList.add('modal-open');
+    }
+
+    // The overlay must survive its own fade-out, so .hidden lags
+    // the real state by one transition and .modal-open is the source of truth.
+    var duplicateDialogCloseTimer = null;
+
+    function closeDuplicateDialog() {
+        var overlay = document.getElementById('duplicate-dialog-overlay');
+        overlay.classList.remove('modal-open');
+
+        if (duplicateDialogCloseTimer !== null) {
+            window.clearTimeout(duplicateDialogCloseTimer);
+        }
+        // Re-hide only after the fade finishes. Must match app.css.
+        duplicateDialogCloseTimer = window.setTimeout(function () {
+            duplicateDialogCloseTimer = null;
+            if (!overlay.classList.contains('modal-open')) {
+                overlay.classList.add('hidden');
+            }
+        }, 140);
+    }
+
+    // Detection outcome dialog. Same reflow-then-fade as the duplicate
+    // dialog; both ids are in app.css's dialog-fade lists.
+    var detectDialogCloseTimer = null;
+    var retryDetection;
+
+    function closeDetectDialog() {
+        var overlay = document.getElementById('detect-dialog-overlay');
+        overlay.classList.remove('modal-open');
+        if (detectDialogCloseTimer !== null) {
+            window.clearTimeout(detectDialogCloseTimer);
+        }
+        detectDialogCloseTimer = window.setTimeout(function () {
+            detectDialogCloseTimer = null;
+            if (!overlay.classList.contains('modal-open')) {
+                overlay.classList.add('hidden');
+            }
+        }, 140);
+    }
+
+    function showDetectDialog(kind, message) {
+        var overlay = document.getElementById('detect-dialog-overlay');
+        var card = document.getElementById('detect-dialog-card');
+        var title = document.getElementById('detect-dialog-title');
+        var body = document.getElementById('detect-dialog-message');
+        var retryBtn = document.getElementById('detect-dialog-retry');
+        var dismissBtn = document.getElementById('detect-dialog-dismiss');
+
+        if (kind === 'failed') {
+            card.className = 'w-full max-w-md rounded-xl border border-danger bg-canvas p-6 shadow-raised';
+            title.textContent = "Couldn't read the installer";
+            retryBtn.classList.remove('hidden');
+            dismissBtn.textContent = 'Fill in manually';
+        } else {
+            card.className = 'w-full max-w-md rounded-xl border border-warn-strong bg-canvas p-6 shadow-raised';
+            title.textContent = 'No silent install flag found';
+            retryBtn.classList.add('hidden');
+            dismissBtn.textContent = 'OK';
+        }
+        body.textContent = message;
+
+        if (detectDialogCloseTimer !== null) {
+            window.clearTimeout(detectDialogCloseTimer);
+            detectDialogCloseTimer = null;
+        }
+        overlay.classList.remove('hidden');
+        void overlay.offsetWidth;
+        overlay.classList.add('modal-open');
+    }
+
+    document.getElementById('detect-dialog-dismiss').addEventListener('click', closeDetectDialog);
+    document.getElementById('detect-dialog-retry').addEventListener('click', function () {
+        closeDetectDialog();
+        if (retryDetection) {
+            retryDetection();
+        }
+    });
+
+    document.getElementById('duplicate-dialog-cancel').addEventListener('click', closeDuplicateDialog);
+    document.getElementById('duplicate-dialog-confirm').addEventListener('click', function () {
+        setConfirmDuplicate(true);
+        closeDuplicateDialog();
+        skipDuplicateCheck = true;
+        resubmitForm();
+    });
+
+    if (addForm) {
+        addForm.addEventListener("submit", function (e) {
+            var typeVal = document.getElementById("type").value;
+
+            if (typeVal === "offline") {
+                var installerInputEl = document.getElementById('installer_file');
+                var detectedPathEl = document.getElementById('detected_installer_path');
+                var hasFile = installerInputEl.files && installerInputEl.files.length > 0;
+                var hasDetected = !!detectedPathEl.value;
+                if (!hasFile && !hasDetected) {
+                    e.preventDefault();
+                    showDropzoneError('Please choose an installer file before adding.');
+                    return;
+                }
+            }
+
+            // Already confirmed (dialog "Add anyway"/"Add this version", or a
+            // server bounce-back that's being resubmitted) — go straight
+            // through. The server guard re-checks regardless, so this is
+            // safe even if something stale slipped past the client check.
+            if (skipDuplicateCheck || isConfirmDuplicateSet()) {
+                skipDuplicateCheck = false;
+                showLoadingOverlay(typeVal);
+                return;
+            }
+
+            e.preventDefault();
+
+            var nameVal = document.getElementById('name').value.trim();
+            var versionVal = document.getElementById('version').value.trim();
+
+            fetch('/software/check-duplicate?name=' + encodeURIComponent(nameVal) + '&version=' + encodeURIComponent(versionVal))
+                .then(function (res) {
+                    if (!res.ok) throw new Error('duplicate check failed');
+                    return res.json();
+                })
+                .then(function (data) {
+                    if (data.match === 'exact' || data.match === 'name_only') {
+                        openDuplicateDialog(data.match, data.existing_version);
+                    } else {
+                        skipDuplicateCheck = true;
+                        resubmitForm();
+                    }
+                })
+                .catch(function () {
+                    // Fetch failed — don't block the admin. Let it submit;
+                    // the server guard runs the identical check before insert.
+                    skipDuplicateCheck = true;
+                    resubmitForm();
+                });
+        });
+    }
+
+    // Click and drop both funnel through one handleFile(), so they share
+    // identical detection logic.
+    var discardDetectedFile;
+    (function () {
+        var installerInput = document.getElementById('installer_file');
+        var dropzoneEmpty = document.getElementById('dropzone-empty');
+        var detectedPathField = document.getElementById('detected_installer_path');
+        var detectedTierField = document.getElementById('detected_confidence_tier');
+        var pollTimer = null;
+        // 200 polls * 3s = 10 minutes.
+        var MAX_POLL_ATTEMPTS = 200;
+        // Held so a retry can re-run against the file already in staging
+        // rather than pushing a 50MB installer over the lab network again.
+        // lastFile is the fallback for when the upload itself never landed.
+        var lastFile = null;
+        var lastFileName = '';
+        var lastStagedPath = '';
+
+        function stopPolling() {
+            if (pollTimer) {
+                clearTimeout(pollTimer);
+                pollTimer = null;
+            }
+        }
+
+        function showFilledResult(fileName, message) {
+            document.getElementById('filled-filename').textContent = fileName;
+            document.getElementById('detect-status-msg').textContent = message;
+            showDropzoneState('filled');
+        }
+
+        // The call broke - a retry can genuinely help.
+        function failDetection(fileName, detail) {
+            showUninstallSwitchNote(false);
+            showFilledResult(fileName, "Detection failed - retry, or fill the fields in manually");
+            showDetectDialog('failed', detail ||
+                "AppEase couldn't read this installer. The detection service may be unreachable, or it timed out. " +
+                "You can try again, or type the silent install flag in yourself.");
+        }
+
+        // The API answered and does not recognise this installer. No retry:
+        // asking again returns the same nothing.
+        function unknownDetection(fileName) {
+            showFilledResult(fileName, "No silent install flag found - enter one manually");
+            showDetectDialog('unknown',
+                "The detection service answered, but it doesn't recognise this installer, so there is no silent " +
+                "install flag to use. Trying again won't change that. Enter the flag yourself if you know it - " +
+                "otherwise AppEase falls back to a guessed command and marks this entry Unverified.");
+        }
+
+        function pollStatus(jobId, attempt, fileName) {
+            fetch('/software/detect/status/' + jobId)
+                .then(function (res) { return res.json(); })
+                .then(function (job) {
+                    if (job.status === 'done') {
+                        var result = job.result || {};
+                        var nameInput = document.getElementById('name');
+                        var versionInput = document.getElementById('version');
+                        var silentInput = document.getElementById('silent_flag');
+
+                        // Overwrite anything the PAGE filled in - a leftover
+                        // Chocolatey pick, or an earlier file - but never
+                        // something the admin typed by hand.
+                        if (result.name && mayAutofill(nameInput, [detectFilledName, chocoFilledName])) {
+                            nameInput.value = result.name;
+                            detectFilledName = result.name;
+                            validateName();
+                        }
+                        if (result.version && mayAutofill(versionInput, [detectFilledVersion, chocoFilledVersion])) {
+                            versionInput.value = result.version;
+                            detectFilledVersion = result.version;
+                            validateVersion();
+                        }
+                        if (result.silent_install && mayAutofill(silentInput, [detectFilledSilent])) {
+                            silentInput.value = result.silent_install;
+                            detectFilledSilent = result.silent_install;
+                        }
+                        // Only the allowed switches ever arrive here; the
+                        // server dropped the rest. Nothing allowed but
+                        // something suggested: say so, and leave it empty.
+                        var switchInput = document.getElementById('uninstall_switch');
+                        var switchShown = !document.getElementById('uninstall-switch-field').classList.contains('hidden');
+                        if (switchShown && mayAutofill(switchInput, [detectFilledUninstall])) {
+                            switchInput.value = result.uninstall_switch || '';
+                            detectFilledUninstall = result.uninstall_switch || '';
+                        }
+                        showUninstallSwitchNote(switchShown && !result.uninstall_switch && !!result.uninstall_suggested);
+                        validateUninstallSwitch();
+                        detectedPathField.value = result.installer_path || '';
+                        detectedTierField.value = result.confidence_tier || '';
+
+                        lastStagedPath = result.installer_path || '';
+
+                        // The API can return a name with no silent flag,
+                        // and the flag is what makes a deployment work.
+                        if (!result.silent_install) {
+                            unknownDetection(fileName);
+                        } else {
+                            showFilledResult(fileName, 'Detected - review and edit before adding');
+                        }
+                    } else if (job.status === 'error') {
+                        lastStagedPath = (job.result || {}).installer_path || lastStagedPath;
+                        failDetection(fileName);
+                    } else if (attempt >= MAX_POLL_ATTEMPTS) {
+                        failDetection(fileName);
+                    } else {
+                        pollTimer = setTimeout(function () { pollStatus(jobId, attempt + 1, fileName); }, 3000);
+                    }
+                })
+                .catch(function () {
+                    if (attempt >= MAX_POLL_ATTEMPTS) {
+                        failDetection(fileName);
+                    } else {
+                        pollTimer = setTimeout(function () { pollStatus(jobId, attempt + 1, fileName); }, 3000);
+                    }
+                });
+        }
+
+        // ONE shared handler for both click-selected and dropped files.
+        function handleFile(file) {
+            stopPolling();
+            // Stale-file guard: clear any previous detection results first
+            detectedPathField.value = '';
+            detectedTierField.value = '';
+            lastFile = file || null;
+            lastFileName = file ? file.name : '';
+            lastStagedPath = '';
+            hideDropzoneError();
+
+            if (!file) {
+                showDropzoneState('empty');
+                return;
+            }
+
+            var dotIndex = file.name.lastIndexOf('.');
+            var ext = dotIndex >= 0 ? file.name.substring(dotIndex).toLowerCase() : '';
+            if (ext !== '.exe' && ext !== '.msi') {
+                showDropzoneState('empty');
+                showDropzoneError('Only .exe and .msi files are allowed.');
+                return;
+            }
+
+            showUninstallSwitchField(ext === '.exe');
+            document.getElementById('detecting-filename').textContent = file.name + ' (' + formatFileSize(file.size) + ')';
+            showDropzoneState('detecting');
+
+            var formData = new FormData();
+            formData.append('installer_file', file);
+
+            fetch('/software/detect', { method: 'POST', body: formData })
+                .then(function (res) {
+                    if (res.status !== 202) {
+                        throw new Error('detect request failed');
+                    }
+                    return res.json();
+                })
+                .then(function (data) {
+                    pollStatus(data.job_id, 1, file.name);
+                })
+                .catch(function () {
+                    // The upload itself never landed, so there is nothing in
+                    // staging to retry against - retryDetection falls back to
+                    // sending the file again.
+                    failDetection(file.name);
+                });
+        }
+
+        retryDetection = function () {
+            stopPolling();
+            if (lastStagedPath) {
+                showDropzoneState('detecting');
+                var formData = new FormData();
+                formData.append('path', lastStagedPath);
+                fetch('/software/detect/retry', { method: 'POST', body: formData })
+                    .then(function (res) {
+                        if (res.status !== 202) {
+                            return res.json().then(function (data) {
+                                throw new Error((data && data.error) || 'retry failed');
+                            });
+                        }
+                        return res.json();
+                    })
+                    .then(function (data) {
+                        pollStatus(data.job_id, 1, lastFileName);
+                    })
+                    .catch(function (err) {
+                        // A 404 means the staged copy is gone (replace
+                        // discards it): surface that, not the generic one.
+                        failDetection(lastFileName, err && err.message);
+                    });
+                return;
+            }
+            if (lastFile) {
+                handleFile(lastFile);
+            }
+        };
+
+        // ✕ replace: discard the orphaned upload server-side, then reset to
+        // State 1. Also the stale-file guard's reset path.
+        discardDetectedFile = function () {
+            stopPolling();
+            var path = detectedPathField.value;
+            if (path) {
+                var formData = new FormData();
+                formData.append('path', path);
+                fetch('/software/detect/discard', { method: 'POST', body: formData }).catch(function () {});
+            }
+            installerInput.value = '';
+            detectedPathField.value = '';
+            detectedTierField.value = '';
+
+            // Drop only what DETECTION wrote, or a replaced file's name and
+            // version linger; anything typed by hand stays.
+            clearDetectAutofills();
+            showUninstallSwitchField(true);
+
+            showDropzoneState('empty');
+        };
+
+        if (installerInput) {
+            // Click-to-choose path, covering the native input too.
+            installerInput.addEventListener('change', function () {
+                var file = installerInput.files && installerInput.files[0];
+                handleFile(file);
+            });
+
+            // Drag-and-drop path — funnels into the same handleFile().
+            ['dragover', 'dragenter'].forEach(function (evtName) {
+                dropzoneEmpty.addEventListener(evtName, function (e) {
+                    e.preventDefault();
+                    dropzoneEmpty.classList.add('border-primary');
+                    dropzoneEmpty.classList.remove('border-field');
+                });
+            });
+            dropzoneEmpty.addEventListener('dragleave', function () {
+                dropzoneEmpty.classList.remove('border-primary');
+                dropzoneEmpty.classList.add('border-field');
+            });
+            dropzoneEmpty.addEventListener('drop', function (e) {
+                e.preventDefault();
+                dropzoneEmpty.classList.remove('border-primary');
+                dropzoneEmpty.classList.add('border-field');
+
+                var droppedFile = e.dataTransfer.files && e.dataTransfer.files[0];
+                if (!droppedFile) return;
+
+                // Into the real input, so it rides along on submit.
+                var dt = new DataTransfer();
+                dt.items.add(droppedFile);
+                installerInput.files = dt.files;
+
+                handleFile(droppedFile);
+            });
+
+            // Now that the dropzone is wired up, hide the native input — it
+            // stays in the DOM (and functional) for the no-JS fallback, since
+            // this line only runs when JS is enabled.
+            installerInput.classList.add('hidden');
+        }
+    })();
+
+    // ---- Chocolatey package suggestions --------------------------------
+    //
+    // Advisory only. Chocolatey says third-party queries are unsupported
+    // and may stop working without notice, so every failure leaves a plain
+    // text input that adds whatever you typed. Nothing here blocks the form.
+    var chocoInput = document.getElementById('package_name');
+    var chocoResults = document.getElementById('choco-results');
+    var chocoStatus = document.getElementById('choco-status');
+    var chocoTimer = null;
+    var chocoRequestId = 0;
+    var chocoItems = [];
+    var chocoActiveIndex = -1;
+    var chocoChosenId = '';
+    var chocoStep = 'search';
+    // What each source last auto-filled, so a later fill can replace it
+    // while never overwriting something the admin typed.
+    var detectFilledName = '';
+    var detectFilledVersion = '';
+    var detectFilledSilent = '';
+    var detectFilledUninstall = '';
+
+    function mayAutofill(field, previousAutofills) {
+        /* True when a field is empty or still holds a value THIS PAGE put
+         * there. A newer pick beats a leftover from the other tab, but
+         * never a value the admin typed. */
+        var current = (field.value || '').trim();
+        if (!current) { return true; }
+        for (var i = 0; i < previousAutofills.length; i++) {
+            if (previousAutofills[i] && current === previousAutofills[i]) { return true; }
+        }
+        return false;
+    }
+
+    function clearDetectAutofills() {
+        /* Blank the three fields IF they still hold what detection put
+         * there. Anything the admin typed over the top survives. */
+        var pairs = [
+            ['name', detectFilledName],
+            ['version', detectFilledVersion],
+            ['silent_flag', detectFilledSilent],
+            ['uninstall_switch', detectFilledUninstall],
+        ];
+        pairs.forEach(function (pair) {
+            var field = document.getElementById(pair[0]);
+            if (field && pair[1] && field.value === pair[1]) { field.value = ''; }
+        });
+        detectFilledName = '';
+        detectFilledVersion = '';
+        detectFilledSilent = '';
+        detectFilledUninstall = '';
+        showUninstallSwitchNote(false);
+        validateUninstallSwitch();
+    }
+
+    function clearChocoAutofills() {
+        /* The Chocolatey twin of clearDetectAutofills(). Named rather than
+         * inline because the reset button and the source-tab switch both
+         * need it, and two copies of a rule this fiddly would drift. */
+        var nameField = document.getElementById('name');
+        var versionField = document.getElementById('version');
+        if (chocoFilledName && nameField.value === chocoFilledName) { nameField.value = ''; }
+        if (chocoFilledVersion && versionField.value === chocoFilledVersion) { versionField.value = ''; }
+        chocoFilledName = '';
+        chocoFilledVersion = '';
+    }
+
+    var chocoFilledName = '';
+    var chocoFilledVersion = '';
+    var CHOCO_DEBOUNCE_MS = 400;
+    var CHOCO_MIN_CHARS = 3;
+    var CHOCO_UNAVAILABLE = 'Package search is unavailable right now. You can still type the package name.';
+
+    function chocoSetStatus(text, tone) {
+        if (!text) {
+            chocoStatus.textContent = '';
+            chocoStatus.classList.add('hidden');
+            return;
+        }
+        // Rewriting className drops .hidden, which is what reveals the line.
+        chocoStatus.className = 'mt-1 block text-xs choco-status-' + tone;
+        chocoStatus.textContent = text;
+    }
+
+    function chocoCloseResults() {
+        chocoResults.classList.add('hidden');
+        chocoResults.removeAttribute('aria-busy');
+        chocoResults.innerHTML = '';
+        chocoItems = [];
+        chocoActiveIndex = -1;
+    }
+
+    // Step machine for the Chocolatey tab, mirroring showDropzoneState() on
+    // the Local tab: 'search' shows only the search box, 'picked' swaps in
+    // the summary card and reveals Name/Version/Category.
+    //
+    // syncNvcRequired() MUST run on every transition. Hiding those fields
+    // while they are still marked required makes the browser refuse to
+    // submit and focus nothing, which looks exactly like a dead button.
+    function chocoShowStep(step) {
+        document.getElementById('choco-search-step').classList.toggle('hidden', step !== 'search');
+        document.getElementById('choco-search-hint').classList.toggle('hidden', step !== 'search');
+        document.getElementById('choco-picked').classList.toggle('hidden', step !== 'picked');
+        document.getElementById('choco-version-note').classList.toggle('hidden', step !== 'picked');
+        document.getElementById('online-detected-fields').classList.toggle('hidden', step !== 'picked');
+        chocoStep = step;
+        // Same rule as the fields above: never leave a hidden input required.
+        if (document.getElementById('type').value === 'online') {
+            chocoInput.required = (step === 'search');
+        }
+        syncNvcRequired();
+        checkAllValid();
+    }
+
+    function chocoSetPicked(packageId, meta) {
+        chocoInput.value = packageId;
+        document.getElementById('choco-picked-id').textContent = packageId;
+        document.getElementById('choco-picked-meta').textContent = meta || '';
+        chocoCloseResults();
+        chocoShowStep('picked');
+    }
+
+    function chocoSetPickedMeta(meta) {
+        document.getElementById('choco-picked-meta').textContent = meta || '';
+    }
+
+    // Called from the card's "change" button. Global on purpose - it is
+    // wired with an inline onclick, same as discardDetectedFile() on the
+    // Local tab.
+    function chocoClearPick() {
+        chocoInput.value = '';
+        chocoChosenId = '';
+
+        // Clear only what the search filled in. Anything typed by hand
+        // survives, which is the same rule chocoChoose() applies when
+        // deciding whether it may overwrite a field.
+        clearChocoAutofills();
+
+        chocoSetStatus('', '');
+        chocoShowStep('search');
+        chocoInput.focus();
+    }
+
+    function chocoHighlight(index) {
+        var options = chocoResults.getElementsByClassName('choco-option');
+        for (var i = 0; i < options.length; i++) {
+            if (i === index) {
+                options[i].classList.add('choco-option-active');
+                if (options[i].scrollIntoView) {
+                    options[i].scrollIntoView({ block: 'nearest' });
+                }
+            } else {
+                options[i].classList.remove('choco-option-active');
+            }
+        }
+        chocoActiveIndex = index;
+    }
+
+    function chocoFormatDownloads(count) {
+        if (!count) return '';
+        if (count >= 1000000) return (Math.round(count / 100000) / 10) + 'M downloads';
+        if (count >= 1000) return Math.round(count / 1000) + 'K downloads';
+        return count + ' downloads';
+    }
+
+    function chocoShowNote(text) {
+        chocoResults.removeAttribute('aria-busy');
+        chocoResults.innerHTML = '';
+        var note = document.createElement('span');
+        note.className = 'choco-note';
+        note.textContent = text;
+        chocoResults.appendChild(note);
+        chocoResults.classList.remove('hidden');
+        chocoItems = [];
+        chocoActiveIndex = -1;
+    }
+
+    // Placeholder rows while a search is in flight. Five rows measure about
+    // the panel's 18rem cap, so the list barely moves when results land.
+    //
+    // Spans, not divs: this block sits inside a paragraph element, which an
+    // HTML parser closes on the first div. .skeleton sets no display, so
+    // each bar needs an explicit `block`.
+    //
+    // Write no literal tag names or attributes in these comments: inline
+    // script is served as part of the page, and t/ counts some of those
+    // substrings across the whole document.
+    //
+    // Only chocoSearch() calls this, so it cannot appear before the 3-char
+    // gate and the 400ms debounce have both passed.
+    function chocoShowSkeleton() {
+        chocoResults.innerHTML = '';
+
+        var label = document.createElement('span');
+        label.className = 'choco-skeleton-label';
+        label.textContent = 'Searching Chocolatey...';
+        chocoResults.appendChild(label);
+
+        for (var i = 0; i < 5; i++) {
+            var row = document.createElement('span');
+            row.className = 'choco-skeleton-row';
+            row.setAttribute('aria-hidden', 'true');
+
+            var idBar = document.createElement('span');
+            idBar.className = 'skeleton block h-4 w-1/3';
+            var metaBar = document.createElement('span');
+            metaBar.className = 'skeleton block h-4 w-full mt-1.5';
+
+            row.appendChild(idBar);
+            row.appendChild(metaBar);
+            chocoResults.appendChild(row);
+        }
+
+        chocoResults.setAttribute('aria-busy', 'true');
+        chocoResults.classList.remove('hidden');
+        chocoItems = [];
+        chocoActiveIndex = -1;
+    }
+
+    function chocoRenderResults(results) {
+        chocoResults.removeAttribute('aria-busy');
+        chocoResults.innerHTML = '';
+        chocoItems = results;
+
+        for (var i = 0; i < results.length; i++) {
+            (function (item, index) {
+                var option = document.createElement('button');
+                // Inside a <form>, a button with no type defaults to submit.
+                option.type = 'button';
+                option.className = 'choco-option';
+
+                var idLine = document.createElement('span');
+                idLine.className = 'choco-option-id';
+                idLine.textContent = item.id;
+                if (item.deprecated) {
+                    var badge = document.createElement('span');
+                    badge.className = 'choco-badge';
+                    badge.textContent = 'Deprecated';
+                    idLine.appendChild(badge);
+                }
+
+                var metaLine = document.createElement('span');
+                metaLine.className = 'choco-option-meta';
+                var meta = item.title;
+                if (item.version) meta += ' \u00b7 v' + item.version;
+                var downloads = chocoFormatDownloads(item.downloads);
+                if (downloads) meta += ' \u00b7 ' + downloads;
+                metaLine.textContent = meta;
+
+                option.appendChild(idLine);
+                option.appendChild(metaLine);
+
+                // mousedown rather than click: the input's blur handler closes
+                // this panel, and blur fires BEFORE click - so a click handler
+                // would never run. preventDefault also stops focus leaving the
+                // input, so blur never fires at all.
+                option.addEventListener('mousedown', function (e) {
+                    e.preventDefault();
+                    chocoChoose(index);
+                });
+                option.addEventListener('mouseenter', function () {
+                    chocoHighlight(index);
+                });
+
+                chocoResults.appendChild(option);
+            })(results[i], i);
+        }
+
+        chocoResults.classList.remove('hidden');
+        chocoActiveIndex = -1;
+    }
+
+    function chocoChoose(index) {
+        var item = chocoItems[index];
+        if (!item) return;
+
+        chocoInput.value = item.id;
+        chocoChosenId = item.id;
+
+        var nameField = document.getElementById('name');
+        var versionField = document.getElementById('version');
+
+        // Fill only what is empty or what a previous pick put there. Some
+        // Chocolatey titles cannot survive the name rules at all (an
+        // ampersand or a trademark sign is enough), in which case the server
+        // sends back an empty string and the field is simply left alone.
+        if (item.name && (!nameField.value.trim() || nameField.value === chocoFilledName)) {
+            nameField.value = item.name;
+            chocoFilledName = item.name;
+        }
+        if (item.version && (!versionField.value.trim() || versionField.value === chocoFilledVersion)) {
+            versionField.value = item.version;
+            chocoFilledVersion = item.version;
+        }
+
+        // Re-run the existing field validators so the character counters and
+        // the Add button's enabled state reflect what was just filled in.
+        if (typeof validateName === 'function') validateName();
+        if (typeof validateVersion === 'function') validateVersion();
+        if (typeof checkAllValid === 'function') checkAllValid();
+
+        // The card carries the identity of the package, so the status line
+        // is reserved for things that need attention - nothing to say when
+        // a healthy package was picked from the list.
+        var meta = item.title;
+        if (item.version) meta += ' \u00b7 v' + item.version;
+        chocoSetPicked(item.id, meta);
+
+        if (item.deprecated) {
+            chocoSetStatus('This package is marked deprecated - check it is still the one you want.', 'warn');
+        } else {
+            chocoSetStatus('', '');
+        }
+    }
+
+    function chocoSearch(term) {
+        var requestId = ++chocoRequestId;
+        chocoShowSkeleton();
+
+        fetch('/software/chocolatey/search?q=' + encodeURIComponent(term))
+            .then(function (res) {
+                if (!res.ok) throw new Error('search failed');
+                return res.json();
+            })
+            .then(function (data) {
+                // A newer keystroke already fired; this reply is stale.
+                if (requestId !== chocoRequestId) return;
+                if (!data.ok) {
+                    chocoCloseResults();
+                    chocoSetStatus(CHOCO_UNAVAILABLE, 'muted');
+                    return;
+                }
+                if (!data.results.length) {
+                    chocoShowNote('No packages found for "' + term + '".');
+                    return;
+                }
+                chocoSetStatus('', '');
+                chocoRenderResults(data.results);
+            })
+            .catch(function () {
+                if (requestId !== chocoRequestId) return;
+                chocoCloseResults();
+                chocoSetStatus(CHOCO_UNAVAILABLE, 'muted');
+            });
+    }
+
+    function chocoVerify() {
+        var value = chocoInput.value.trim();
+        // Nothing to check, or it came from a suggestion and is known good.
+        if (!value || value === chocoChosenId) return;
+
+        var requestId = ++chocoRequestId;
+        chocoSetStatus('Checking ' + value + '...', 'muted');
+
+        fetch('/software/chocolatey/verify?id=' + encodeURIComponent(value))
+            .then(function (res) {
+                if (!res.ok) throw new Error('verify failed');
+                return res.json();
+            })
+            .then(function (data) {
+                if (requestId !== chocoRequestId) return;
+                if (!data.ok) {
+                    chocoSetPickedMeta('Could not verify this package name.');
+                    chocoSetStatus('Package lookup is unavailable right now, so this name has not been checked. It will still be added.', 'muted');
+                    return;
+                }
+                if (!data.found) {
+                    chocoSetPickedMeta('Not found on the Chocolatey Community Repository.');
+                    chocoSetStatus('"' + value + '" was not found on the Chocolatey Community Repository. You can still add it, but deployment will fail on every computer if the name is wrong.', 'warn');
+                    return;
+                }
+                var found = data.package;
+                var meta = found.title;
+                if (found.version) meta += ' \u00b7 v' + found.version;
+                chocoSetPickedMeta(meta);
+                if (found.deprecated) {
+                    chocoSetStatus('This package is marked deprecated - check it is still the one you want.', 'warn');
+                } else {
+                    chocoSetStatus('', '');
+                }
+            })
+            .catch(function () {
+                if (requestId !== chocoRequestId) return;
+                chocoSetPickedMeta('Could not verify this package name.');
+                chocoSetStatus('Package lookup is unavailable right now, so this name has not been checked. It will still be added.', 'muted');
+            });
+    }
+
+    if (chocoInput && chocoResults && chocoStatus) {
+        chocoInput.addEventListener('input', function () {
+            chocoChosenId = '';
+            chocoSetStatus('', '');
+            if (chocoTimer) clearTimeout(chocoTimer);
+
+            var term = chocoInput.value.trim();
+            if (term.length < CHOCO_MIN_CHARS) {
+                chocoCloseResults();
+                chocoRequestId++;   // discard anything already in flight
+                return;
+            }
+
+            chocoTimer = setTimeout(function () { chocoSearch(term); }, CHOCO_DEBOUNCE_MS);
+        });
+
+        chocoInput.addEventListener('keydown', function (e) {
+            var isOpen = !chocoResults.classList.contains('hidden') && chocoItems.length > 0;
+
+            if (e.key === 'ArrowDown' && isOpen) {
+                e.preventDefault();
+                chocoHighlight((chocoActiveIndex + 1) % chocoItems.length);
+            } else if (e.key === 'ArrowUp' && isOpen) {
+                e.preventDefault();
+                chocoHighlight((chocoActiveIndex - 1 + chocoItems.length) % chocoItems.length);
+            } else if (e.key === 'Enter') {
+                // Swallow Enter ONLY while a suggestion is highlighted, so it
+                // still submits the form every other time.
+                if (isOpen && chocoActiveIndex >= 0) {
+                    e.preventDefault();
+                    chocoChoose(chocoActiveIndex);
+                }
+            } else if (e.key === 'Escape' && isOpen) {
+                e.preventDefault();
+                chocoCloseResults();
+            }
+        });
+
+        chocoInput.addEventListener('blur', function () {
+            if (chocoTimer) clearTimeout(chocoTimer);
+            chocoCloseResults();
+
+            var typed = chocoInput.value.trim();
+            if (!typed) return;
+
+            // Typed by hand rather than chosen from the list. Advance anyway:
+            // a name the repository has never heard of must not trap anyone on
+            // step 1, since adding it is still allowed and only warned about.
+            if (chocoStep !== 'picked') {
+                chocoSetPicked(typed, 'Checking this package...');
+            }
+            chocoVerify();
+        });
+
+        // Opening step. A package name already in the field means the server
+        // bounced this form back (the duplicate-name path) with the value
+        // restored by Jinja - so go straight to the picked card, exactly as
+        // bounceHasFile sends the Local tab to its filled state.
+        var chocoInitialValue = chocoInput.value.trim();
+        if (chocoInitialValue) {
+            chocoSetPicked(chocoInitialValue, '');
+        } else {
+            chocoShowStep('search');
+        }
+    }
+
+    // Built before the dropzone state machine runs, because it flips
+    // categoryListboxActive and every later syncNvcRequired() call reads it.
+    buildCategoryListbox();
+
+    toggleTypeFields();
+    // Local starts at State 1, which also applies the JS-only hiding on top
+    // of the no-JS-visible markup.
+    showDropzoneState('empty');
+
+    // Server bounce-back on a duplicate. Jinja already restored the values;
+    // this restores the JS-driven state (tab, dropzone) and re-opens the
+    // dialog, so a bounce looks like the client-side check.
+    var duplicateMatch = {{ duplicate_match|tojson if duplicate_match else 'null' }};
+    var duplicateExistingVersion = {{ duplicate_existing_version|tojson if duplicate_existing_version else 'null' }};
+    var bounceIsOnline = {{ 'true' if form_type == 'online' else 'false' }};
+    var bounceHasFile = {{ 'true' if form_detected_installer_path else 'false' }};
+
+    if (duplicateMatch) {
+        if (bounceIsOnline) {
+            selectType('online');
+        } else if (bounceHasFile) {
+            document.getElementById('filled-filename').textContent = 'Installer file (already uploaded)';
+            document.getElementById('detect-status-msg').textContent = 'Review the details below, then confirm.';
+            showDropzoneState('filled');
+        }
+        openDuplicateDialog(duplicateMatch, duplicateExistingVersion);
+    }
+</script>
+<script>
+    /* Edit drawer, for dt:edit. Basecoat's drawer bundle is not loaded, so
+     * the animated close and the backdrop click are done here; opening
+     * needs no script, as the CSS transitions off [open]. */
+    (function () {
+        var drawer = document.getElementById('sw-edit-drawer');
+        var form = document.getElementById('sw-edit-form');
+        if (!drawer || !form) { return; }
+
+        var nameInput = document.getElementById('sw-edit-name');
+        var versionInput = document.getElementById('sw-edit-version');
+        var categorySelect = document.getElementById('sw-edit-category');
+        var newCategoryField = document.getElementById('sw-edit-new-category-field');
+        var newCategoryInput = document.getElementById('sw-edit-new-category');
+        var newCategoryNote = document.getElementById('sw-edit-new-category-error');
+        var nameError = document.getElementById('sw-edit-name-error');
+        var versionError = document.getElementById('sw-edit-version-error');
+        var saveButton = document.getElementById('sw-edit-save');
+        var switchGroup = document.getElementById('sw-edit-switch-group');
+        var switchValue = document.getElementById('sw-edit-switch');
+        var EDIT_URL = "{{ url_for('update_software', software_id=0) }}";
+
+        function closeDrawer() {
+            if (!drawer.open) { return; }
+            drawer.setAttribute('data-closing', '');
+            // 500ms matches the drawer transition duration in basecoat.css.
+            // Closing immediately would snap it shut with no animation.
+            window.setTimeout(function () {
+                drawer.removeAttribute('data-closing');
+                drawer.close();
+            }, 500);
+        }
+
+        /* Mirrors validate_software_identity() in app.py. The server is
+         * still the authority - this only saves a round trip and keeps the
+         * message wording identical on both sides. */
+        function hasEmojiChar(value) {
+            return value.length !== [].concat(Array.prototype.slice.call(value)).length
+                || /[\u2600-\u27BF]/.test(value);
+        }
+
+        function fieldError(value, label, minLength, maxLength, pattern, charsMessage) {
+            if (!value) { return label + ' is required.'; }
+            if (value.length < minLength) { return label + ' must be at least ' + minLength + ' characters.'; }
+            if (value.length > maxLength) { return label + ' must be ' + maxLength + ' characters or fewer.'; }
+            if (/  /.test(value)) { return label + ' cannot contain consecutive spaces.'; }
+            if (/(.)\1{3,}/.test(value)) { return label + ' cannot have more than 3 consecutive identical characters.'; }
+            if (hasEmojiChar(value)) { return label + ' cannot contain emojis.'; }
+            if (!pattern.test(value)) { return charsMessage; }
+            return null;
+        }
+
+        function show(node, input, message) {
+            node.textContent = message || '';
+            // Swapped, not stacked. The compiled .text-muted comes after
+            // .text-danger, so with both on the line an error read grey.
+            node.classList.toggle('text-danger', !!message);
+            node.classList.toggle('text-muted', !message);
+            if (message) { input.setAttribute('aria-invalid', 'true'); }
+            else { input.removeAttribute('aria-invalid'); }
+        }
+
+        function validate() {
+            var nameMessage = fieldError(nameInput.value.trim(), 'Name', 2, 50,
+                /^[a-zA-Z0-9 .+\-_()\[\]]+$/,
+                'Name can only contain letters, numbers, spaces, and . + - _ ( ) [ ] characters.');
+            var versionMessage = fieldError(versionInput.value.trim(), 'Version', 2, 30,
+                /^[a-zA-Z0-9 .+\-]+$/,
+                'Version can only contain letters, numbers, dots, hyphens, plus signs, and spaces.');
+            show(nameError, nameInput, nameMessage);
+            show(versionError, versionInput, versionMessage);
+            // The add form's "Choose to add..." rule, shown once typing
+            // starts.
+            var adding = categorySelect.value === NEW_CATEGORY_VALUE;
+            newCategoryField.classList.toggle('hidden', !adding);
+            var categoryMessage = adding && newCategoryInput.value.trim()
+                ? newCategoryError(newCategoryInput.value) : null;
+            show(newCategoryNote, newCategoryInput, categoryMessage);
+            var ok = !nameMessage && !versionMessage
+                && categoryIsComplete(categorySelect, newCategoryInput);
+            saveButton.disabled = !ok;
+            return ok;
+        }
+
+        nameInput.addEventListener('input', validate);
+        versionInput.addEventListener('input', validate);
+        categorySelect.addEventListener('change', function () {
+            validate();
+            if (categorySelect.value === NEW_CATEGORY_VALUE) { newCategoryInput.focus(); }
+        });
+        newCategoryInput.addEventListener('input', validate);
+
+        form.addEventListener('submit', function (event) {
+            if (!validate()) { event.preventDefault(); }
+        });
+
+        document.addEventListener('dt:edit', function (event) {
+            var row = event.detail && event.detail.row;
+            if (!row) { return; }
+            // The /0/ SEGMENT of the url_for'd path is the placeholder, NOT a
+            // trailing zero; the route's path stays in one place.
+            form.action = EDIT_URL.replace('/0/', '/' + encodeURIComponent(event.detail.id) + '/');
+            nameInput.value = row.getAttribute('data-dt-field-name') || '';
+            versionInput.value = row.getAttribute('data-dt-field-version') || '';
+            categorySelect.value = row.getAttribute('data-dt-field-category') || '';
+            newCategoryInput.value = '';
+            var savedSwitch = row.getAttribute('data-dt-field-uninstall-switch') || '';
+            switchGroup.classList.toggle('hidden', row.getAttribute('data-dt-field-exe') !== '1');
+            switchValue.textContent = savedSwitch
+                ? savedSwitch + ' \u00b7 can\'t be changed'
+                : 'None - this program can be uninstalled only if it lists a quiet uninstall of its own.';
+            validate();
+            drawer.showModal();
+            nameInput.focus();
+        });
+
+        drawer.addEventListener('click', function (event) {
+            if (event.target.closest('[data-sw-drawer-close]')) { closeDrawer(); return; }
+            // Backdrop click: the <dialog> itself is the full-viewport
+            // backdrop area, so a click landing ON it (not on the panel
+            // inside) means outside.
+            if (event.target === drawer) { closeDrawer(); }
+        });
+
+        // Esc fires cancel before the native close, so it can be redirected
+        // through the same animated path.
+        drawer.addEventListener('cancel', function (event) {
+            event.preventDefault();
+            closeDrawer();
+        });
+    })();
+</script>
+<script defer src="{{ url_for('static', filename='js/data-table.js') }}"></script>
+{% endblock %}

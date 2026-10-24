@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+
+{% block title %}Notifications - AppEase{% endblock %}
+{% block page_title %}Notifications{% endblock %}
+
+{% block topbar_actions %}
+<div class="flex items-center gap-2">
+    {% if session.get('admin_role') == 'admin' %}
+        <a href="{{ url_for('dashboard') }}" class="btn" data-variant="outline" data-size="sm">Back to Dashboard</a>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+{#- Words for each stored event code, so the Event column and its
+    filter read as English; unlisted codes are made readable, never
+    blank. #}
+{% set event_labels = {
+    'problem_report': 'Problem report',
+    'job_failed': 'Install failed',
+    'computer_status': 'Computer status',
+    'batch_done': 'Deployment finished',
+} %}
+<div class="space-y-6">
+    {#- The facet menus are the filters; the route's ?severity= and
+        ?event= still work if linked, but nothing here reads them. -#}
+    <section class="card" data-dt-root data-dt-pagesize="25" data-dt-print
+             data-dt-searchlabel="Search notifications..." data-dt-filename="notifications"
+             data-dt-noun="notification" data-dt-noun-plural="notifications"
+             data-dt-idfield="notification_ids"
+             data-dt-xlsx-url="{{ url_for('export_xlsx') }}"
+             data-print-section data-print-title="AppEase - Notifications">
+        <header>
+            <h3 class="card-title">Notifications</h3>
+            <p class="card-description">Older entries are pruned automatically.</p>
+        </header>
+
+        {% if notifications %}
+            <section>
+                <div class="dt-toolbar" data-dt-toolbar></div>
+
+                <div class="dt-table-wrap">
+                    <table class="dt-table" data-dt-table data-table>
+                        <thead>
+                            <tr>
+                                <th class="dt-col-select" data-dt-select data-print-skip>
+                                    <input type="checkbox" class="input" aria-label="Select all rows on this page" />
+                                </th>
+                                <th class="dt-col-id" data-dt-sort data-dt-label="ID">ID</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Severity">Severity</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Event">Event</th>
+                                <th data-dt-sort data-dt-label="Message">Message</th>
+                                {#- A date range, not a facet: a
+                                    timestamp facet lists every row. -#}
+                                <th data-dt-sort data-dt-daterange data-dt-label="When">When</th>
+                                <th class="dt-col-actions" data-dt-actions data-dt-label="Action" data-print-skip>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for note in notifications %}
+                                {% set is_unread = note['id'] > last_seen_id %}
+                                <tr data-dt-id="{{ note['id'] }}"
+                                    {#- Only rows with somewhere to
+                                        go carry the url (Open). -#}
+                                    {% if note["link_url"] %}data-dt-open-url="{{ note['link_url'] }}"{% endif %}>
+                                    <td class="dt-col-select" data-print-skip>
+                                        <input type="checkbox" class="input" data-dt-check
+                                               value="{{ note['id'] }}" aria-label="Select notification #{{ note['id'] }}" />
+                                    </td>
+                                    <td class="font-mono text-xs" data-sort="{{ note['id'] }}">{{ note["id"] }}</td>
+                                    <td>
+                                        {% if note["severity"] == "error" %}
+                                            <span class="dt-pill" data-tone="bad">Error</span>
+                                        {% elif note["severity"] == "warning" %}
+                                            <span class="dt-pill" data-tone="warn">Warning</span>
+                                        {% else %}
+                                            <span class="dt-pill" data-tone="info">{{ note["severity"] | capitalize }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ event_labels.get(note["event_type"]) or (note["event_type"] or "") | replace("_", " ") | capitalize }}</td>
+                                    {#- The bare message, so sorting
+                                        ignores the unread dot. -#}
+                                    <td data-sort="{{ note['message'] }}">
+                                        <div class="flex items-center gap-2">
+                                            {% if is_unread %}
+                                                <span class="notif-unread-dot" aria-label="Unread"></span>
+                                            {% else %}
+                                                <span class="notif-unread-dot" data-read aria-hidden="true"></span>
+                                            {% endif %}
+                                            <span class="{{ 'font-medium text-ink' if is_unread else '' }}">{{ note["message"] }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="font-mono text-xs" data-sort="{{ note['created_at'] }}">{{ note["created_at"] | manila }}</td>
+                                    <td class="dt-col-actions" data-print-skip>
+                                        <button type="button" class="dt-row-menu" data-dt-rowmenu
+                                                aria-haspopup="menu" aria-expanded="false"
+                                                aria-label="Actions for notification #{{ note['id'] }}">
+                                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <p class="dt-empty hidden" data-dt-empty>No notifications match the current filters.</p>
+                </div>
+
+                <div class="dt-footer" data-dt-footer></div>
+            </section>
+
+            {#- Export only, as in the Audit Trail: a notification is a
+                record with no delete route; pruning is the server's job. -#}
+            <div class="dt-actionbar hidden" data-dt-actionbar role="region" aria-label="Bulk actions">
+                <span class="dt-actionbar-count">
+                    <span data-dt-count>0 selected</span>
+                    <button type="button" class="dt-actionbar-clear" data-dt-clear aria-label="Clear selection">&times;</button>
+                </span>
+                <span class="dt-actionbar-sep" aria-hidden="true"></span>
+                <button type="button" class="dt-btn" data-dt-export>Export</button>
+            </div>
+        {% else %}
+            <section>
+                <p class="text-sm text-muted-foreground">No notifications yet.</p>
+            </section>
+        {% endif %}
+    </section>
+</div>
+<script defer src="{{ url_for('static', filename='js/data-table.js') }}"></script>
+{% endblock %}

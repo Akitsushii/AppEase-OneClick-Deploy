@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {#- Pre-paint pair, as in base.html (not extended here). Both sit
+        ABOVE any stylesheet: they cover the gap before one loads. Without
+        the meta a dark-mode OS paints its canvas dark; without the rule the
+        root has no colour (the background is on <body>). -#}
+    <meta name="color-scheme" content="light">
+    <style>html { background-color: #f1f2f6; }</style>
+    <meta name="robots" content="noindex, nofollow">
+    <title>Report a Problem - AppEase</title>
+
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="{{ url_for('static', filename='fonts/Outfit-Variable.woff2') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/appease-appiconv2.svg') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+
+    {#- Self-contained styling, like report.html. This page is served to
+        anyone who reaches the address, so it must render correctly with
+        nothing else loaded and needs no build-css.bat run. -#}
+    <style>
+        .gate-wrap {
+            min-height: 100dvh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+            background: #f1f2f6;
+        }
+        .gate-card {
+            width: 100%;
+            max-width: 420px;
+            background: #ffffff;
+            border: 1px solid #e6e8ee;
+            border-radius: 14px;
+            padding: 28px 24px;
+            text-align: center;
+        }
+        .gate-card img { width: 48px; height: 48px; margin: 0 auto 14px; display: block; }
+        .gate-card h1 { font-size: 20px; font-weight: 600; margin: 0 0 6px; }
+        .gate-card > p { font-size: 14px; color: #4b5563; margin: 0 0 20px; line-height: 1.5; }
+        .gate-card label { display: block; font-size: 13px; font-weight: 500; text-align: left; margin-bottom: 6px; }
+        .gate-card input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid #e6e8ee;
+            border-radius: 10px;
+            font: inherit;
+            font-size: 18px;
+            text-align: center;
+            letter-spacing: 0.35em;
+            text-transform: uppercase;
+        }
+        .gate-card input:focus { outline: 2px solid #2f68dd; outline-offset: 1px; }
+        .gate-btn {
+            width: 100%;
+            margin-top: 14px;
+            padding: 12px 16px;
+            border: 0;
+            border-radius: 10px;
+            background: #2f68dd;
+            color: #ffffff;
+            font: inherit;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .gate-help {
+            margin-top: 20px;
+            padding-top: 18px;
+            border-top: 1px solid #eef0f4;
+            font-size: 13px;
+            color: #6b7280;
+            line-height: 1.55;
+            text-align: left;
+        }
+        .gate-help strong { color: #374151; font-weight: 600; }
+        .gate-msg {
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            text-align: left;
+            line-height: 1.45;
+        }
+        .gate-msg.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+        .gate-msg.ok { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    </style>
+</head>
+<body>
+
+    <div class="gate-wrap">
+        <div class="gate-card">
+            <img src="{{ url_for('static', filename='img/appease-appiconv2.svg') }}" alt="">
+            <h1>Report a Problem</h1>
+            <p>Scan the QR code on the computer you want to report, or enter the code printed underneath it.</p>
+
+            {#- A report sent by typed code redirects here, so its
+                confirmation (a toast) shows here too. Errors stay inline:
+                "that code did not match" belongs beside the box, not in a
+                toast that floats away. -#}
+            {% if error_message %}
+                <div class="gate-msg error">{{ error_message }}</div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('report_access') }}">
+                <label for="qr_code">Code on the sticker</label>
+                {#- What was typed comes back after a refusal, so one wrong
+                    character is fixed rather than the whole code retyped. -#}
+                <input type="text" id="qr_code" name="qr_code" maxlength="10"
+                       autocomplete="off" autocapitalize="characters" spellcheck="false"
+                       value="{{ typed_code or '' }}"
+                       placeholder="4K7P2M" required autofocus
+                       aria-describedby="gate-help">
+                <button type="submit" class="gate-btn">Continue</button>
+            </form>
+
+            <div class="gate-help" id="gate-help">
+                {#- The em dash below is NOT a slip: it reproduces
+                    SHORTCUT_FILENAME in agent/agent.py, the real .url name
+                    on every lab desktop. Change both together or neither. -#}
+                <p><strong>No sticker on the computer?</strong>
+                Use the &ldquo;AppEase &mdash; Report a Problem&rdquo; shortcut on the
+                desktop of any working computer in the lab, or tell a lab
+                technician in person.</p>
+            </div>
+        </div>
+    </div>
+
+    {#- app.css already carries the toast styles, and /static/js/ passes
+        the public-host guard. -#}
+    <div id="toast-container"></div>
+    <script defer src="{{ url_for('static', filename='js/toasts.js') }}"></script>
+    {% if success_message %}
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                if (typeof window.showToast !== 'function') { return; }
+                window.showToast({{ success_message | tojson }}, 'success');
+            });
+        </script>
+    {% endif %}
+
+</body>
+</html>

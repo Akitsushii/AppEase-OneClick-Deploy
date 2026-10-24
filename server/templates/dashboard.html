@@ -1,0 +1,1055 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - AppEase{% endblock %}
+{% block page_title %}Overview{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {% set online_now = online_count if online_count is defined else 0 %}
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section class="skin-card skin-rise card @container/card" style="animation-delay: 0ms; background-image: linear-gradient(to top, color-mix(in oklab, var(--color-primary) 5%, transparent), var(--color-card));">
+            <header>
+                <p class="card-description">Total Computers</p>
+                <h3 class="card-title skin-value text-2xl tabular-nums @[250px]/card:text-3xl" data-countup>{{ computer_count }}</h3>
+                <span class="card-action">
+                    <span class="flex items-center justify-center rounded-lg bg-subtle px-2 py-2 text-muted">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2" /><line x1="8" x2="16" y1="21" y2="21" /><line x1="12" x2="12" y1="17" y2="21" /></svg>
+                    </span>
+                </span>
+            </header>
+            {#- The number sits in the header, as in the reference's
+                CardHeader/CardFooter split. -#}
+            <footer style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
+                {#- Retired machines are left out of both numbers and said
+                    so here, so retiring one visibly changes the card. -#}
+                <p class="text-xs {{ 'text-online' if online_now > 0 else 'text-muted' }}">{{ online_now }} online now{% if retired_count %}<span class="text-muted"> &middot; {{ retired_count }} retired</span>{% endif %}</p>
+                </footer>
+        </section>
+        <section class="skin-card skin-rise card @container/card" style="animation-delay: 70ms; background-image: linear-gradient(to top, color-mix(in oklab, var(--color-primary) 5%, transparent), var(--color-card));">
+            <header>
+                <p class="card-description">Software Library</p>
+                <h3 class="card-title skin-value text-2xl tabular-nums @[250px]/card:text-3xl" data-countup>{{ software_count }}</h3>
+                <span class="card-action">
+                    <span class="flex items-center justify-center rounded-lg bg-subtle px-2 py-2 text-muted">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /><path d="m7.5 4.27 9 5.15" /></svg>
+                    </span>
+                </span>
+            </header>
+            <footer style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
+                <p class="text-xs text-muted">Saved software items</p>
+            </footer>
+        </section>
+        <section class="skin-card skin-rise card @container/card" style="animation-delay: 140ms; background-image: linear-gradient(to top, color-mix(in oklab, var(--color-primary) 5%, transparent), var(--color-card));">
+            <header>
+                <p class="card-description">Total Deployments</p>
+                <h3 class="card-title skin-value text-2xl tabular-nums @[250px]/card:text-3xl" data-countup>{{ total_deployments if total_deployments is defined else 0 }}</h3>
+                <span class="card-action">
+                    <span class="flex items-center justify-center rounded-lg bg-subtle px-2 py-2 text-muted">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" /><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" /><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" /><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" /></svg>
+                    </span>
+                </span>
+            </header>
+            <footer style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
+                {#- Installs and uninstalls both count as deployments, so the
+                    card says how many of each, above what it counts. -#}
+                {% set installs_n = deployment_installs if deployment_installs is defined else 0 %}
+                {% set uninstalls_n = deployment_uninstalls if deployment_uninstalls is defined else 0 %}
+                <div>
+                    <p class="text-xs text-muted">{{ installs_n }} install{{ '' if installs_n == 1 else 's' }} &middot; {{ uninstalls_n }} uninstall{{ '' if uninstalls_n == 1 else 's' }}</p>
+                    <p class="text-xs text-muted">Completed or failed, all time</p>
+                </div>
+            </footer>
+        </section>
+        {% set success_rate_display = (success_rate ~ '%') if success_rate is not none else '—' %}
+        <section class="skin-card skin-rise card @container/card" style="animation-delay: 210ms; background-image: linear-gradient(to top, color-mix(in oklab, var(--color-primary) 5%, transparent), var(--color-card));">
+            <header>
+                <p class="card-description">Success Rate</p>
+                <h3 class="card-title skin-value text-2xl tabular-nums @[250px]/card:text-3xl">{{ success_rate_display }}</h3>
+                <span class="card-action">
+                    <span class="flex items-center justify-center rounded-lg bg-subtle px-2 py-2 text-muted">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><path d="m9 11 3 3L22 4" /></svg>
+                    </span>
+                </span>
+            </header>
+            <footer style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
+                {% if success_total is defined and success_total > 0 %}
+                <p class="text-xs text-muted">{{ success_completed }} of {{ success_total }} deployments</p>
+                {% else %}
+                <p class="text-xs text-muted">No deployments yet</p>
+                {% endif %}
+            </footer>
+        </section>
+    </div>
+
+    {#- Three equal cards: the donut is square-ish and needs no wider
+        column. -#}
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <section class="card @container/card">
+            <header>
+                <h3 class="card-title">Deployment Activity</h3>
+                <p class="card-description">{% if chart_from %}{{ chart_from }} to {{ chart_to }}{% else %}Last 7 days{% endif %}{% if activity_clamped %}, shortened to {{ chart_max_days }} days{% endif %}</p>
+            </header>
+            <div class="flex flex-col gap-4 px-4 py-4 sm:px-6">
+                {#- Basecoat select: it picks the initial option from the
+                    hidden input's value, so chart_range_preset drives it with
+                    no aria-selected in the markup. -#}
+                <div class="flex justify-end">
+                    <div id="chart-range" class="select" data-placeholder="Date range">
+                        <button type="button" class="w-[180px]" id="chart-range-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="chart-range-listbox">
+                            <span class="truncate">{{ chart_range_preset }}</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down text-muted-foreground opacity-50 shrink-0"><path d="m6 9 6 6 6-6" /></svg>
+                        </button>
+                        <div id="chart-range-popover" data-popover aria-hidden="true">
+                            <div role="listbox" id="chart-range-listbox" aria-orientation="vertical" aria-labelledby="chart-range-trigger">
+                                <div role="option" data-value="Last 7 days">Last 7 days</div>
+                                <div role="option" data-value="Last 30 days">Last 30 days</div>
+                                <div role="option" data-value="Last 3 months">Last 3 months</div>
+                            </div>
+                        </div>
+                        <input type="hidden" name="chart_range" value="{{ chart_range_preset }}" />
+                    </div>
+                </div>
+                {% if activity_completed_total or activity_failed_total %}
+                    {#- `relative` for the centre total, and NO min-h: the
+                        canvas is aspect-video, so in a forced taller box it
+                        sits at the top while the inset-0 overlay centres in
+                        the whole box, and the total drifts below the ring. -#}
+                    <div class="relative">
+                        <canvas id="deployment-donut" aria-label="Donut chart of completed versus failed deployment jobs over the selected date range"></canvas>
+                        {#- pointer-events-none keeps Basecoat's segment
+                            tooltip working; aria-hidden as the canvas label
+                            already states these figures. -#}
+                        <div class="pointer-events-none absolute inset-0 grid place-items-center" aria-hidden="true">
+                            <div class="text-center leading-none">
+                                {#- The KPI cards' count-up hook. The
+                                    value is server-rendered, so without
+                                    the script it is a plain number, never
+                                    a blank. -#}
+                                <div class="skin-value text-3xl tabular-nums text-ink" data-countup>{{ activity_total }}</div>
+                                <div class="mt-1 text-xs text-muted">Deployments</div>
+                            </div>
+                        </div>
+                    </div>
+                    {#- Hand-authored legend (legend: false below): the
+                        generated one has no slot for a per-series count. -#}
+                    <div class="flex items-start justify-center gap-8">
+                        <div class="text-center">
+                            <p class="flex items-center gap-1.5 text-xs tracking-wide text-muted uppercase"><span class="h-2 w-2 rounded-sm bg-online"></span>Completed</p>
+                            <p class="skin-value mt-1 text-lg tabular-nums text-ink">{{ activity_completed_total }}</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="flex items-center gap-1.5 text-xs tracking-wide text-muted uppercase"><span class="h-2 w-2 rounded-sm bg-danger"></span>Failed</p>
+                            <p class="skin-value mt-1 text-lg tabular-nums text-ink">{{ activity_failed_total }}</p>
+                        </div>
+                    </div>
+                    {#- Visible, not a tooltip: nothing signals a legend is
+                        hoverable, so a caveat behind hover goes unread. -#}
+                    <p class="text-center text-xs text-muted">Excludes pending and cancelled jobs.</p>
+                {% else %}
+                    {#- A div: it is nested in the chart body, which already
+                        has px-6, so `.card > section` would not match. -#}
+                    <div class="flex min-h-[250px] items-center justify-center">
+                        <p class="text-sm text-muted">No completed or failed jobs {% if chart_from %}between {{ chart_from }} and {{ chart_to }}{% else %}in the last 7 days{% endif %} yet.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        {#- Tasks: the signed-in admin's open reports, by the same
+            definition the profile page uses, so the two never disagree.
+            Pills reuse Problem Reports' .rs-chip rules, so a High is the
+            same swatch on both pages. -#}
+        <section class="card">
+            <header>
+                <h3 class="card-title">Tasks</h3>
+                <p class="card-description">Problem reports assigned to you.</p>
+                <span class="card-action">
+                    <a class="btn" data-variant="outline" data-size="sm" href="{{ url_for('problem_reports_page') }}">More</a>
+                </span>
+            </header>
+            {% if task_success %}
+                <div class="alert"><p>{{ task_success }}</p></div>
+            {% elif task_error %}
+                <div class="alert" data-variant="destructive"><p>{{ task_error }}</p></div>
+            {% endif %}
+            {% if assigned_tasks %}
+                {#- Scrolls rather than truncating, so every report is
+                    reachable. A <section>: basecoat pads only header, section
+                    and footer directly under .card. -#}
+                <section class="scrollbar-sm max-h-[26rem] overflow-y-auto" id="task-list">
+                    <div class="flex flex-col gap-2 py-0.5">
+                        {% for task in assigned_tasks %}
+                            <div class="task-row flex items-start gap-2 rounded-lg border border-line bg-background p-3"
+                                 draggable="true" data-task-row data-task-id="{{ task['id'] }}">
+                                <span class="task-grip mt-0.5 shrink-0 text-faint" data-task-grip aria-hidden="true" title="Drag to reorder">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>
+                                </span>
+                                {#- No form: a box only selects for
+                                    the bulk bar. -#}
+                                <input type="checkbox" class="input mt-0.5 shrink-0" data-task-check
+                                       value="{{ task['id'] }}" aria-label="Select report #{{ task['id'] }}" />
+                                <div class="min-w-0 flex-1">
+                                    {#- Opens a dialog rather than leaving
+                                        the dashboard. -#}
+                                    <button type="button" class="block w-full truncate text-left text-sm font-medium text-ink hover:underline"
+                                            data-task-open="{{ task['id'] }}">{{ task['description'] or task['problem_type'] or 'Untitled report' }}</button>
+                                    {#- The id is what a technician says
+                                        ("check 49"), and the toasts use it
+                                        too. -#}
+                                    <p class="truncate text-xs text-muted">
+                                        <span class="font-mono text-faint">#{{ task['id'] }}</span>
+                                        <span aria-hidden="true">&middot;</span>
+                                        {{ task['computer_hostname'] or 'Unassigned computer' }}
+                                    </p>
+                                    <div class="mt-2 flex flex-wrap items-center gap-2">
+                                        <span class="rs-chip inline-flex" data-priority="{{ task['priority'] }}">{{ task['priority'] | capitalize }}</span>
+                                        <span class="rs-chip inline-flex" data-status="{{ task['status'] }}">{{ task['status'] | report_status }}</span>
+                                        <span class="text-xs text-muted">{{ task['reported_at'] | manila }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </section>
+                <footer>
+                    <p class="text-xs text-muted">{{ assigned_task_count }} assigned report{{ '' if assigned_task_count == 1 else 's' }}.</p>
+                </footer>
+            {% else %}
+                <section class="flex min-h-[250px] items-center justify-center">
+                    <p class="text-sm text-muted">No reports assigned to you.</p>
+                </section>
+            {% endif %}
+        </section>
+
+        {#- Recent Activity: the Audit Trail in a card, with the same wording
+            and tones, so an event reads identically in both places. -#}
+        <section class="card">
+            <header>
+                <h3 class="card-title">Recent Activity</h3>
+                <p class="card-description">Account, software and deployment changes.</p>
+                <span class="card-action">
+                    <a class="btn" data-variant="outline" data-size="sm" href="{{ url_for('audit_trail_page') }}">More</a>
+                </span>
+            </header>
+            {% if recent_activity_feed %}
+                <section class="flex flex-col gap-3" id="activity-feed">
+                    {#- Tabs filter loaded rows client-side: every bucket is
+                        within the 7 days fetched. The DEFAULT tab is rendered
+                        here, or a week of rows flashes before the script hides
+                        them. -#}
+                    <div class="flex gap-1" role="tablist" aria-label="Activity period">
+                        {% for bucket, label in [('today', 'Today'), ('yesterday', 'Yesterday'), ('week', 'This week')] %}
+                            <button type="button" class="activity-tab flex-1" role="tab"
+                                    data-activity-tab="{{ bucket }}"
+                                    aria-selected="{{ 'true' if bucket == 'today' else 'false' }}">{{ label }}</button>
+                        {% endfor %}
+                    </div>
+                    <input type="text" class="input" data-activity-search
+                           placeholder="Search activity..." aria-label="Search activity" />
+                    <p class="text-sm text-muted">
+                        <span class="font-semibold text-ink" data-activity-count>{{ activity_today_count }}</span>
+                        <span data-activity-count-label>activities today</span>
+                    </p>
+                    <div class="scrollbar-sm max-h-[20rem] overflow-y-auto">
+                        <ul class="flex flex-col">
+                            {% for item in recent_activity_feed %}
+                                {#- Pre-lowercased, so search never walks
+                                    the DOM. Keep this 'today' and the
+                                    script's activeBucket in step. -#}
+                                <li class="activity-item flex items-start gap-3 border-b border-rule py-3 last:border-0{% if item['bucket'] != 'today' %} hidden{% endif %}"
+                                    data-activity-item data-activity-bucket="{{ item['bucket'] }}"
+                                    data-search="{{ (item['action_label'] ~ ' ' ~ item['actor'] ~ ' ' ~ item['target'] ~ ' ' ~ item['details']) | lower }}">
+                                    {#- Initials are the fallback: no
+                                        picture, a deleted account (NULL from
+                                        the LEFT JOIN) or a broken image. -#}
+                                    <span class="avatar activity-avatar shrink-0" data-size="sm" data-tone="{{ item['tone'] }}"
+                                          title="{{ item['actor'] }}">
+                                        {% if item['avatar_url'] %}<img src="{{ item['avatar_url'] }}" alt="" onerror="this.remove()">{% endif %}
+                                        <span aria-hidden="true">{{ item['initials'] }}</span>
+                                    </span>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-baseline justify-between gap-2">
+                                            <p class="truncate text-sm font-medium text-ink">{{ item['action_label'] }}</p>
+                                            <span class="shrink-0 text-xs whitespace-nowrap text-muted">{{ item['when'] }}</span>
+                                        </div>
+                                        <p class="truncate text-xs text-muted">
+                                            {{ item['actor'] }}{% if item['target'] %} &middot; {{ item['target'] }}{% endif %}
+                                        </p>
+                                        {% if item['details'] %}
+                                            <p class="truncate text-xs text-muted">{{ item['details'] }}</p>
+                                        {% endif %}
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                        {#- An empty tab is a quiet day, not an error. Rendered
+                            visible on such a day, as the rows are rendered
+                            hidden, so nothing appears a beat late. -#}
+                        <p class="py-8 text-center text-sm text-muted{% if activity_today_count %} hidden{% endif %}" data-activity-none>No activity here.</p>
+                    </div>
+                </section>
+            {% else %}
+                <section class="flex min-h-[250px] items-center justify-center">
+                    <p class="text-sm text-muted">No activity in the last 7 days.</p>
+                </section>
+            {% endif %}
+        </section>
+    </div>
+
+    {#- Only the success toast: a failed queue redirects to Deploy, which
+        keeps the selections on screen. -#}
+    {% if deploy_success %}
+        <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ deploy_success | tojson }}, 'success'); });</script>
+    {% endif %}
+
+
+    {#- Recent Deployment Jobs. Column behaviour is declared on each <th>
+        (data-dt-*), not in JS. -#}
+    <section class="card" data-dt-root data-dt-pagesize="10" data-dt-print
+             data-dt-searchlabel="Search jobs..." data-dt-filename="deployment-jobs" data-dt-jobrules
+             data-dt-xlsx-url="{{ url_for('export_xlsx') }}"
+             data-print-section data-print-title="AppEase - Recent Deployment Jobs">
+        <header>
+            <h3 class="card-title">Recent Deployment Jobs</h3>
+        </header>
+        {% if recent_jobs %}
+            <section>
+                {#- Built by data-table.js so the controls cannot drift
+                    from the columns they filter. -#}
+                <div class="dt-toolbar" data-dt-toolbar></div>
+
+                <div class="dt-table-wrap">
+                    <table class="dt-table" data-dt-table data-table>
+                        <thead>
+                            <tr>
+                                <th class="dt-col-select" data-dt-select data-print-skip>
+                                    <input type="checkbox" class="input" aria-label="Select all rows on this page" />
+                                </th>
+                                <th class="dt-col-id" data-dt-sort data-dt-label="ID">ID</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Computer">Computer</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="IP Address">IP Address</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Software">Software</th>
+                                {#- Not "Action": every row menu
+                                    column is already headed that. -#}
+                                <th data-dt-sort data-dt-facet data-dt-label="Type">Type</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Status">Status</th>
+                                {#- Never inside Status: facets come
+                                    from cell text, so a reason there
+                                    would split the Status filter. Hidden
+                                    as it is mostly empty; filtering on it
+                                    shows it, so exports carry it. -#}
+                                <th data-dt-sort data-dt-facet data-dt-hidden data-dt-label="Result">Result</th>
+                                {#- No facet: it would list one
+                                    timestamp per row. -#}
+                                <th data-dt-sort data-dt-daterange data-dt-label="Created">Created</th>
+                                <th data-dt-sort data-dt-label="Completed">Completed</th>
+                                <th class="dt-col-actions" data-dt-actions data-dt-label="Action" data-print-skip>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for job in recent_jobs %}
+                                {#- The action rules, read by both the
+                                    row menu and the bulk bar:
+                                      cancel -> pending only; an
+                                        in_progress job would say
+                                        cancelled while the machine got
+                                        the software anyway
+                                      retry  -> failed or cancelled, and
+                                        job_retryable(): an install needs
+                                        its software in the library, an
+                                        uninstall its row installed
+                                    A completed job gets neither.
+                                    data-job-details is single-quoted, as
+                                    tojson requires. -#}
+                                <tr data-dt-id="{{ job['id'] }}" data-dt-status="{{ job['status'] }}"
+                                    data-job-details='{{ job_details(job) | tojson }}'
+                                    {% if job["status"] == "pending" %}data-dt-cancel-url="{{ url_for('cancel_job', job_id=job['id']) }}"{% endif %}
+                                    {% if job_retryable(job) %}data-dt-retry-url="{{ url_for('retry_job', job_id=job['id']) }}"{% endif %}>
+                                    <td class="dt-col-select" data-print-skip>
+                                        <input type="checkbox" class="input" data-dt-check
+                                               value="{{ job['id'] }}" aria-label="Select job #{{ job['id'] }}" />
+                                    </td>
+                                    <td class="font-mono text-xs" data-sort="{{ job['id'] }}">{{ job["id"] }}</td>
+                                    <td class="font-mono text-xs">{{ job["computer_hostname"] }}</td>
+                                    <td class="font-mono text-xs">{{ job["computer_ip"] or "-" }}</td>
+                                    {#- The bare name, or the facet lists
+                                        "7-Zip" and "7-Zip Removed" apart.
+                                        The badge is for installs only: on
+                                        an uninstall it reads as the
+                                        outcome. -#}
+                                    <td data-sort="{{ job['software_name'] }}">
+                                        <div class="flex items-center gap-2">
+                                            <span class="truncate">{{ job["software_name"] }}</span>
+                                            {% if job["software_deleted"] and job["action"] is none %}
+                                                <span class="dt-pill" data-tone="neutral" title="This software has been removed from the Software Library, so it can no longer be deployed or retried.">Removed</span>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>{{ job_action_label(job["action"]) }}</td>
+                                    {% set pill = job_status_pill(job["status"]) %}
+                                    <td>
+                                        <span class="dt-pill" data-tone="{{ pill[0] }}">{{ pill[1] }}</span>
+                                    </td>
+                                    {% set result = job_result(job["status"], job["exit_code"], job["result_reason"], job["action"]) %}
+                                    <td>
+                                        {% if result and result.label %}
+                                            <span class="job-result" data-tone="{{ result.tone }}">{{ result.label }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="font-mono text-xs" data-sort="{{ job['created_at'] }}">{{ job["created_at"] | manila }}</td>
+                                    <td class="font-mono text-xs" data-sort="{{ job['completed_at'] or '' }}">{{ job["completed_at"] | manila }}</td>
+                                    <td class="dt-col-actions" data-print-skip>
+                                        {#- Always rendered (every row has
+                                            Details), so the column width is
+                                            stable. Delete is on the action
+                                            bar, not here. -#}
+                                        <button type="button" class="dt-row-menu" data-dt-rowmenu data-dt-details
+                                                aria-haspopup="menu" aria-expanded="false"
+                                                aria-label="Actions for job #{{ job['id'] }}">
+                                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {#- When filters leave nothing; distinct from the
+                        server-side "no jobs yet" branch below. -#}
+                    <p class="dt-empty hidden" data-dt-empty>No jobs match the current filters.</p>
+                </div>
+
+                <div class="dt-footer" data-dt-footer></div>
+            </section>
+
+            {#- Delete is here because deployment jobs are disposable
+                history; the Audit Trail's bar has none. -#}
+            <div class="dt-actionbar hidden" data-dt-actionbar role="region" aria-label="Bulk actions">
+                <span class="dt-actionbar-count">
+                    <span data-dt-count>0 selected</span>
+                    <button type="button" class="dt-actionbar-clear" data-dt-clear aria-label="Clear selection">&times;</button>
+                </span>
+                <span class="dt-actionbar-sep" aria-hidden="true"></span>
+                {#- Enabled/disabled by the selection's statuses - see
+                    syncSelection() in data-table.js. -#}
+                <form method="POST" action="{{ url_for('bulk_cancel_jobs') }}" data-dt-form>
+                    <button type="submit" class="dt-btn" data-dt-act="cancel">Cancel</button>
+                </form>
+                <form method="POST" action="{{ url_for('bulk_retry_jobs') }}" data-dt-form>
+                    <button type="submit" class="dt-btn" data-dt-act="retry">Retry</button>
+                </form>
+                <button type="button" class="dt-btn" data-dt-export>Export</button>
+                <form method="POST" action="{{ url_for('bulk_delete_jobs') }}" data-dt-form>
+                    <button type="submit" class="dt-btn" data-tone="danger" data-dt-act="delete">Delete</button>
+                </form>
+            </div>
+            {#- Alert dialogs, not window.confirm(), which cannot be styled
+                and reads as a browser error. -#}
+            <dialog id="dt-confirm-delete" class="alert-dialog" data-dt-confirm="delete"
+                    aria-labelledby="dt-confirm-delete-title" aria-describedby="dt-confirm-delete-desc">
+                <div>
+                    <header>
+                        <figure><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></figure>
+                        <h2 id="dt-confirm-delete-title">Delete <span data-dt-confirm-count>this job</span>?</h2>
+                        <p id="dt-confirm-delete-desc">Removes the history record. Cannot be undone. Queued and running jobs are skipped.</p>
+                    </header>
+                    <footer>
+                        <button type="button" class="btn" data-variant="outline" data-dt-confirm-cancel>Cancel</button>
+                        <button type="button" class="btn" data-variant="destructive" data-dt-confirm-ok>Delete</button>
+                    </footer>
+                </div>
+            </dialog>
+
+            <dialog id="dt-confirm-retry" class="alert-dialog" data-dt-confirm="retry"
+                    aria-labelledby="dt-confirm-retry-title" aria-describedby="dt-confirm-retry-desc">
+                <div>
+                    <header>
+                        <figure><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3L3 16" /><path d="M3 21v-5h5" /></svg></figure>
+                        <h2 id="dt-confirm-retry-title">Re-queue <span data-dt-confirm-count>this job</span>?</h2>
+                        <p id="dt-confirm-retry-desc">A new pending job is created; the original stays in the history. Installs whose software was removed from the library are skipped, and so are uninstalls of software no longer on that computer.</p>
+                    </header>
+                    <footer>
+                        <button type="button" class="btn" data-variant="outline" data-dt-confirm-cancel>Cancel</button>
+                        <button type="button" class="btn" data-dt-confirm-ok>Retry</button>
+                    </footer>
+                </div>
+            </dialog>
+
+            <dialog id="dt-confirm-cancel" class="alert-dialog" data-dt-confirm="cancel"
+                    aria-labelledby="dt-confirm-cancel-title" aria-describedby="dt-confirm-cancel-desc">
+                <div>
+                    <header>
+                        <figure><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" /><path d="m15 9-6 6" /><path d="m9 9 6 6" /></svg></figure>
+                        <h2 id="dt-confirm-cancel-title">Cancel <span data-dt-confirm-count>this job</span>?</h2>
+                        <p id="dt-confirm-cancel-desc">Removed from the queue before an agent picks it up. You can re-queue it with Retry.</p>
+                    </header>
+                    <footer>
+                        <button type="button" class="btn" data-variant="outline" data-dt-confirm-cancel>Keep it</button>
+                        <button type="button" class="btn" data-variant="destructive" data-dt-confirm-ok>Cancel job</button>
+                    </footer>
+                </div>
+            </dialog>
+        {% else %}
+            <section>
+                <p class="text-sm text-muted">No deployment jobs yet.</p>
+            </section>
+        {% endif %}
+    </section>
+
+</div>
+{% if assigned_tasks %}
+{#- Full task detail for the dialog. A JSON blob rather than data-* on every
+    row: descriptions and notes are free text and can be long, and this keeps
+    escaping in one place instead of across five attributes per row. -#}
+<script id="task-detail-data" type="application/json">{{ task_details | tojson }}</script>
+
+<dialog id="task-dialog" class="dialog" aria-labelledby="task-dialog-title">
+    <article>
+        <header>
+            <h2 id="task-dialog-title">Report</h2>
+            <p id="task-dialog-sub" class="text-sm text-muted"></p>
+        </header>
+        <section>
+            <div class="mb-3 flex flex-wrap items-center gap-2">
+                <span id="task-dialog-priority" class="rs-chip inline-flex"></span>
+                <span id="task-dialog-status" class="rs-chip inline-flex"></span>
+            </div>
+            <dl class="flex flex-col gap-3 text-sm">
+                <div>
+                    <dt class="text-xs tracking-wide text-muted uppercase">Description</dt>
+                    <dd id="task-dialog-description" class="mt-1 whitespace-pre-wrap text-body"></dd>
+                </div>
+                <div id="task-dialog-notes-wrap">
+                    <dt class="text-xs tracking-wide text-muted uppercase">Notes</dt>
+                    <dd id="task-dialog-notes" class="mt-1 whitespace-pre-wrap text-body"></dd>
+                </div>
+                <div id="task-dialog-reporter-wrap">
+                    <dt class="text-xs tracking-wide text-muted uppercase">Reported by</dt>
+                    <dd id="task-dialog-reporter" class="mt-1 text-body"></dd>
+                </div>
+            </dl>
+        </section>
+        <footer>
+            <button type="button" class="btn" data-variant="outline" data-task-dialog-close>Close</button>
+            {#- href is rewritten per task when the dialog opens. The base
+                URL is kept here (not built in JS) so it still points
+                somewhere sensible if the script never runs. -#}
+            <a id="task-dialog-link" class="btn" data-task-base="{{ url_for('problem_reports_page') }}"
+               href="{{ url_for('problem_reports_page') }}">Open in Problem Reports</a>
+        </footer>
+    </article>
+</dialog>
+
+{#- Two forms, so each posts only its own field. -#}
+<div id="task-bulk-bar" class="task-bulk-bar hidden" role="region" aria-label="Bulk actions">
+    <span class="task-bulk-count">
+        <span id="task-bulk-label">0 selected</span>
+        <button type="button" class="task-bulk-clear" data-task-bulk-clear aria-label="Clear selection">&times;</button>
+    </span>
+    <div class="task-bulk-sep" aria-hidden="true"></div>
+    <form method="post" action="{{ url_for('bulk_update_problem_report_status') }}" data-bulk-form>
+        <input type="hidden" name="status" value="" />
+        <button type="button" class="btn" data-variant="outline" data-size="sm"
+                data-bulk-menu="task-bulk-status-menu" aria-haspopup="listbox" aria-expanded="false">Status</button>
+    </form>
+    <form method="post" action="{{ url_for('bulk_update_problem_report_priority') }}" data-bulk-form>
+        <input type="hidden" name="priority" value="" />
+        <button type="button" class="btn" data-variant="outline" data-size="sm"
+                data-bulk-menu="task-bulk-priority-menu" aria-haspopup="listbox" aria-expanded="false">Priority</button>
+    </form>
+</div>
+
+{#- Menus live outside the bar: .rs-menu is position:fixed (reused unchanged
+    from Problem Reports), so it is placed by script against its trigger. -#}
+<div id="task-bulk-status-menu" class="rs-menu hidden" role="listbox" aria-label="Set status">
+    {% for option in allowed_report_statuses %}
+        <button type="button" class="rs-opt flex" role="option" aria-selected="false" data-bulk-value="{{ option }}">
+            <span class="rs-chip inline-flex" data-status="{{ option }}">{{ option | report_status }}</span>
+        </button>
+    {% endfor %}
+</div>
+<div id="task-bulk-priority-menu" class="rs-menu hidden" role="listbox" aria-label="Set priority">
+    {% for option in allowed_priorities %}
+        <button type="button" class="rs-opt flex" role="option" aria-selected="false" data-bulk-value="{{ option }}">
+            <span class="rs-chip inline-flex" data-priority="{{ option }}">{{ option | capitalize }}</span>
+        </button>
+    {% endfor %}
+</div>
+{% endif %}
+
+{#- Job Details. Every word in it is the server's: the script only copies
+    the row's job_details() JSON in. -#}
+<div id="job-details-overlay" class="deploy-backdrop fixed inset-0 z-50 hidden flex items-center justify-center">
+    <div class="w-full max-w-md rounded-xl border border-line bg-canvas p-6 shadow-raised"
+         role="dialog" aria-modal="true" aria-labelledby="job-details-title">
+        <div class="flex items-center justify-between">
+            <h3 id="job-details-title" class="text-lg font-semibold tracking-tight text-ink">Job #<span data-field="id"></span></h3>
+            <div class="flex items-center gap-2">
+                <span class="dt-pill" data-field="status"></span>
+                <button type="button" data-job-details-close aria-label="Close" class="rounded-md px-2 py-1 text-label hover:bg-subtle">&times;</button>
+            </div>
+        </div>
+        <dl class="details-list mt-4">
+            <dt>Computer</dt>
+            <dd class="font-mono text-xs" data-field="computer"></dd>
+            <dt>Current IP</dt>
+            <dd class="font-mono text-xs" data-field="ip"></dd>
+            <dt>Software</dt>
+            <dd><span data-field="software"></span> <span class="text-xs text-muted">(as listed when queued)</span></dd>
+            <dt>Type</dt>
+            <dd data-field="action"></dd>
+        </dl>
+        <dl class="details-list">
+            <dt>Result</dt>
+            <dd><span class="job-result" data-field="result"></span><p class="details-note hidden" data-field="result-note"></p></dd>
+            <dt>Exit code</dt>
+            <dd class="font-mono text-xs" data-field="exit"></dd>
+        </dl>
+        <dl class="details-list">
+            <dt>Queued</dt>
+            <dd class="font-mono text-xs" data-field="queued"></dd>
+            <dt>Picked up by the agent</dt>
+            <dd class="font-mono text-xs" data-field="picked"></dd>
+            <dt data-field="finished-label"></dt>
+            <dd><span class="font-mono text-xs" data-field="finished"></span><p class="details-note hidden" data-field="finished-note"></p></dd>
+            <dt class="hidden" data-row="requeued">Re-queued after no report</dt>
+            <dd class="hidden" data-row="requeued" data-field="requeued"></dd>
+        </dl>
+    </div>
+</div>
+<script>
+    /* Job Details. Copies the server's strings and decides nothing. A
+     * missing value is the muted dash - never "Unknown", and never a 0 for
+     * a code nobody returned. */
+    (function () {
+        var overlay = document.getElementById('job-details-overlay');
+        if (!overlay) { return; }
+        var lastTrigger = null;
+
+        function field(name) {
+            return overlay.querySelector('[data-field="' + name + '"]');
+        }
+
+        function put(name, value) {
+            var node = field(name);
+            if (!node) { return; }
+            node.textContent = '';
+            if (value) {
+                node.textContent = value;
+                return;
+            }
+            var blank = document.createElement('span');
+            blank.className = 'details-blank';
+            blank.textContent = '-';
+            node.appendChild(blank);
+        }
+
+        function note(name, value) {
+            var node = field(name);
+            if (!node) { return; }
+            node.textContent = value || '';
+            node.classList.toggle('hidden', !value);
+        }
+
+        function openDetails(row) {
+            var details;
+            try {
+                details = JSON.parse(row.getAttribute('data-job-details') || '{}');
+            } catch (err) {
+                return;
+            }
+            field('id').textContent = row.getAttribute('data-dt-id') || '';
+            var status = field('status');
+            status.textContent = details['status-label'] || '';
+            status.setAttribute('data-tone', details['status-tone'] || 'neutral');
+            put('computer', details.computer);
+            put('ip', details.ip);
+            put('software', details.software);
+            put('action', details.action);
+            put('result', details['result-label']);
+            if (details['result-label'] && details['result-tone']) {
+                field('result').setAttribute('data-tone', details['result-tone']);
+            } else {
+                field('result').removeAttribute('data-tone');
+            }
+            note('result-note', details['result-note']);
+            put('exit', details.exit);
+            put('queued', details.queued);
+            put('picked', details.picked);
+            field('finished-label').textContent = details['finished-label'] || '';
+            put('finished', details.finished);
+            note('finished-note', details['finished-note']);
+            put('requeued', details.requeued);
+            var requeuedRows = overlay.querySelectorAll('[data-row="requeued"]');
+            for (var i = 0; i < requeuedRows.length; i++) {
+                requeuedRows[i].classList.toggle('hidden', !details.requeued);
+            }
+            overlay.classList.remove('hidden');
+            var closeButton = overlay.querySelector('[data-job-details-close]');
+            if (closeButton) { closeButton.focus(); }
+        }
+
+        function closeDetails() {
+            if (overlay.classList.contains('hidden')) { return; }
+            overlay.classList.add('hidden');
+            if (lastTrigger && typeof lastTrigger.focus === 'function') { lastTrigger.focus(); }
+        }
+
+        document.addEventListener('dt:details', function (event) {
+            var row = event.detail && event.detail.row;
+            if (!row || !row.hasAttribute('data-job-details')) { return; }
+            lastTrigger = row.querySelector('[data-dt-rowmenu]');
+            openDetails(row);
+        });
+        overlay.addEventListener('click', function (event) {
+            if (event.target === overlay || event.target.closest('[data-job-details-close]')) {
+                closeDetails();
+            }
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') { closeDetails(); }
+        });
+    })();
+</script>
+
+{#- Deferred, unlike the chart scripts below. -#}
+<script defer src="{{ url_for('static', filename='js/data-table.js') }}"></script>
+{#- Vendored, no CDN. Chart.js before basecoat's chart.js, and basecoat.js
+    (which select and chart register against) before both. Synchronous, not
+    defer, so position alone guarantees the order. -#}
+<script src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vendor/basecoat.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vendor/basecoat-select.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/vendor/basecoat-chart.min.js') }}"></script>
+<script>
+    (function () {
+        function ready(fn) {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', fn);
+            } else {
+                fn();
+            }
+        }
+
+        ready(function () {
+        var CURRENT_PRESET = {{ chart_range_preset | tojson }};
+        var MIN_DAY = {{ chart_min_day | tojson }};
+
+        // ---- date range (Basecoat select) ----
+        // Independently guarded from the chart below: an empty range still
+        // renders the select, and the whole point of the control there is to
+        // get back to a range that has data.
+        {# manilaToday() ends the range on the lab's today, not the
+            browser's UTC day, which is a day out every evening here.
+
+            NOTE the non-stripping delimiters on this comment. The stripping
+            form eats the newline that ends the `//` comment above, and the
+            next statement lands inside it - pad2 silently stops existing. #}
+        function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+        function manilaToday() {
+            var now = new Date();
+            var d = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (8 * 3600000));
+            return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+        }
+
+        function shiftDay(day, delta) {
+            var p = day.split('-');
+            var d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2]));
+            d.setUTCDate(d.getUTCDate() + delta);
+            return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate());
+        }
+
+        var range = document.getElementById('chart-range');
+        if (range) {
+            range.addEventListener('change', function (event) {
+                var preset = (event.detail && event.detail.value) || '';
+                // Basecoat also settles the initial value on init; navigating
+                // on that would be a reload loop, so only a real change moves.
+                if (!preset || preset === CURRENT_PRESET) { return; }
+                var to = manilaToday();
+                var days = preset === 'Last 7 days' ? 6 : (preset === 'Last 30 days' ? 29 : 90);
+                var from = shiftDay(to, -days);
+                if (MIN_DAY && from < MIN_DAY) { from = MIN_DAY; }
+                window.location.href = window.location.pathname
+                    + '?chart_from=' + encodeURIComponent(from)
+                    + '&chart_to=' + encodeURIComponent(to);
+            });
+        }
+
+        // ---- recent activity ----
+        // Its own guard: an admin can have tasks but no audit activity (or the
+        // reverse), so neither card may early-return on the other's behalf.
+        var feed = document.getElementById('activity-feed');
+        if (feed) {
+            var items = Array.prototype.slice.call(feed.querySelectorAll('[data-activity-item]'));
+            var tabs = Array.prototype.slice.call(feed.querySelectorAll('[data-activity-tab]'));
+            var search = feed.querySelector('[data-activity-search]');
+            var none = feed.querySelector('[data-activity-none]');
+            var countNode = feed.querySelector('[data-activity-count]');
+            var countLabel = feed.querySelector('[data-activity-count-label]');
+            var activeBucket = 'today';
+            var LABELS = { today: 'activities today', yesterday: 'activities yesterday', week: 'activities this week' };
+
+            function applyFilter() {
+                var term = (search && search.value || '').trim().toLowerCase();
+                var shown = 0;
+                items.forEach(function (item) {
+                    // "This week" is the widest bucket and includes the two
+                    // narrower ones - today's events are still this week's.
+                    var bucket = item.getAttribute('data-activity-bucket');
+                    var inBucket = activeBucket === 'week' ? true : bucket === activeBucket;
+                    var matches = !term || (item.getAttribute('data-search') || '').indexOf(term) !== -1;
+                    var visible = inBucket && matches;
+                    item.classList.toggle('hidden', !visible);
+                    if (visible) { shown += 1; }
+                });
+                if (none) { none.classList.toggle('hidden', shown !== 0); }
+                if (countNode) { countNode.textContent = shown; }
+                // Neutral wording while searching: "3 activities today"
+                // would be wrong for a search result count.
+                if (countLabel) {
+                    countLabel.textContent = term
+                        ? (shown === 1 ? 'match' : 'matches')
+                        : LABELS[activeBucket];
+                }
+            }
+
+            tabs.forEach(function (tab) {
+                tab.addEventListener('click', function () {
+                    activeBucket = tab.getAttribute('data-activity-tab');
+                    tabs.forEach(function (other) {
+                        other.setAttribute('aria-selected', other === tab ? 'true' : 'false');
+                    });
+                    applyFilter();
+                });
+            });
+            if (search) { search.addEventListener('input', applyFilter); }
+            applyFilter();
+        }
+
+        // ---- tasks ----
+        // Guarded independently of the donut and the date select: an admin
+        // with no assigned reports renders no task list at all, and a shared
+        // early return would take the chart down with it.
+        var taskList = document.getElementById('task-list');
+        if (taskList) {
+            var rows = function () {
+                return Array.prototype.slice.call(taskList.querySelectorAll('[data-task-row]'));
+            };
+
+            // ---- drag to reorder ----
+            // Session-only: there is no per-admin ordering column on
+            // problem_reports, so a reload returns to the server's
+            // priority-first order.
+            var dragging = null;
+            taskList.addEventListener('dragstart', function (event) {
+                var row = event.target.closest('[data-task-row]');
+                if (!row) { return; }
+                dragging = row;
+                row.classList.add('task-row-dragging');
+                // Firefox will not start a drag at all without setData.
+                if (event.dataTransfer) {
+                    event.dataTransfer.effectAllowed = 'move';
+                    try { event.dataTransfer.setData('text/plain', row.getAttribute('data-task-id') || ''); } catch (err) { /* IE-ism, ignore */ }
+                }
+            });
+            taskList.addEventListener('dragend', function () {
+                if (dragging) { dragging.classList.remove('task-row-dragging'); }
+                dragging = null;
+            });
+            taskList.addEventListener('dragover', function (event) {
+                if (!dragging) { return; }
+                event.preventDefault();
+                if (event.dataTransfer) { event.dataTransfer.dropEffect = 'move'; }
+                var over = event.target.closest('[data-task-row]');
+                if (!over || over === dragging) { return; }
+                // Insert before or after depending on which half of the target
+                // row the pointer is in, so dragging downward past a row
+                // actually moves past it instead of sticking above it.
+                var box = over.getBoundingClientRect();
+                var after = event.clientY > box.top + box.height / 2;
+                over.parentNode.insertBefore(dragging, after ? over.nextSibling : over);
+            });
+            taskList.addEventListener('drop', function (event) { event.preventDefault(); });
+
+            // ---- detail dialog ----
+            var dialog = document.getElementById('task-dialog');
+            var detailNode = document.getElementById('task-detail-data');
+            var details = {};
+            if (detailNode) {
+                try { details = JSON.parse(detailNode.textContent) || {}; } catch (err) { details = {}; }
+            }
+            function setField(id, value, wrapId) {
+                var node = document.getElementById(id);
+                if (node) { node.textContent = value || ''; }
+                if (wrapId) {
+                    var wrap = document.getElementById(wrapId);
+                    // Hide the whole term/definition pair rather than leaving a
+                    // heading over empty space.
+                    if (wrap) { wrap.classList.toggle('hidden', !value); }
+                }
+            }
+            taskList.addEventListener('click', function (event) {
+                var trigger = event.target.closest('[data-task-open]');
+                if (!trigger || !dialog) { return; }
+                var task = details[trigger.getAttribute('data-task-open')];
+                if (!task) { return; }
+                setField('task-dialog-title', task.problem_type || 'Report');
+                setField('task-dialog-sub', '#' + (task.id || '') + ' \u00b7 ' + (task.computer_hostname || 'Unassigned computer') + ' \u00b7 ' + (task.reported_at || ''));
+                setField('task-dialog-description', task.description || 'No description was provided.');
+                setField('task-dialog-notes', task.notes, 'task-dialog-notes-wrap');
+                setField('task-dialog-reporter', task.reporter, 'task-dialog-reporter-wrap');
+                var pri = document.getElementById('task-dialog-priority');
+                if (pri) { pri.textContent = task.priority_label || ''; pri.setAttribute('data-priority', task.priority || ''); }
+                var sta = document.getElementById('task-dialog-status');
+                if (sta) { sta.textContent = task.status_label || ''; sta.setAttribute('data-status', task.status || ''); }
+                var link = document.getElementById('task-dialog-link');
+                if (link) {
+                    // ?locate=<id> scrolls Problem Reports to the row and
+                    // highlights it, without reopening the Details panel -
+                    // these same fields were just shown in this dialog.
+                    var base = link.getAttribute('data-task-base') || link.getAttribute('href');
+                    link.setAttribute('href', base + (base.indexOf('?') === -1 ? '?' : '&') + 'locate=' + encodeURIComponent(trigger.getAttribute('data-task-open')));
+                }
+                dialog.showModal();
+            });
+            if (dialog) {
+                dialog.addEventListener('click', function (event) {
+                    // Backdrop clicks land on <dialog> itself, never on the
+                    // <article> inside it.
+                    if (event.target === dialog || event.target.closest('[data-task-dialog-close]')) {
+                        dialog.close();
+                    }
+                });
+            }
+
+            // ---- bulk action bar ----
+            var bar = document.getElementById('task-bulk-bar');
+            var barLabel = document.getElementById('task-bulk-label');
+            var openMenu = null;
+
+            function selectedIds() {
+                return rows()
+                    .map(function (row) { return row.querySelector('[data-task-check]'); })
+                    .filter(function (box) { return box && box.checked; })
+                    .map(function (box) { return box.value; });
+            }
+            function closeMenu() {
+                if (!openMenu) { return; }
+                openMenu.menu.classList.add('hidden');
+                openMenu.trigger.setAttribute('aria-expanded', 'false');
+                openMenu = null;
+            }
+            function syncBar() {
+                var count = selectedIds().length;
+                if (bar) { bar.classList.toggle('hidden', count === 0); }
+                if (barLabel) { barLabel.textContent = count + ' selected'; }
+                if (count === 0) { closeMenu(); }
+            }
+
+            taskList.addEventListener('change', function (event) {
+                if (event.target.matches('[data-task-check]')) { syncBar(); }
+            });
+
+            if (bar) {
+                bar.addEventListener('click', function (event) {
+                    if (event.target.closest('[data-task-bulk-clear]')) {
+                        rows().forEach(function (row) {
+                            var box = row.querySelector('[data-task-check]');
+                            if (box) { box.checked = false; }
+                        });
+                        syncBar();
+                        return;
+                    }
+                    var trigger = event.target.closest('[data-bulk-menu]');
+                    if (!trigger) { return; }
+                    var menu = document.getElementById(trigger.getAttribute('data-bulk-menu'));
+                    if (!menu) { return; }
+                    var wasOpen = openMenu && openMenu.menu === menu;
+                    closeMenu();
+                    if (wasOpen) { return; }
+                    menu.classList.remove('hidden');
+                    // .rs-menu is position:fixed, so it is placed against the
+                    // trigger here. Opens upward - the bar is pinned to the
+                    // bottom of the viewport, so there is never room below.
+                    var box = trigger.getBoundingClientRect();
+                    var width = menu.offsetWidth;
+                    var left = Math.max(8, Math.min(box.left, window.innerWidth - width - 8));
+                    menu.style.left = left + 'px';
+                    menu.style.top = Math.max(8, box.top - menu.offsetHeight - 8) + 'px';
+                    trigger.setAttribute('aria-expanded', 'true');
+                    openMenu = { menu: menu, trigger: trigger };
+                });
+            }
+
+            document.addEventListener('click', function (event) {
+                if (!openMenu) { return; }
+                if (openMenu.menu.contains(event.target) || openMenu.trigger.contains(event.target)) { return; }
+                closeMenu();
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') { closeMenu(); }
+            });
+
+            // The ids are collected at submit time, not synced on every
+            // checkbox change, so the post never carries a stale selection.
+            ['task-bulk-status-menu', 'task-bulk-priority-menu'].forEach(function (menuId) {
+                var menu = document.getElementById(menuId);
+                if (!menu) { return; }
+                menu.addEventListener('click', function (event) {
+                    var option = event.target.closest('[data-bulk-value]');
+                    if (!option || !openMenu) { return; }
+                    var form = openMenu.trigger.closest('form');
+                    var ids = selectedIds();
+                    closeMenu();
+                    if (!form || !ids.length) { return; }
+                    var field = form.querySelector('input[type="hidden"]');
+                    if (field) { field.value = option.getAttribute('data-bulk-value'); }
+                    Array.prototype.slice.call(form.querySelectorAll('input[name="report_ids"]'))
+                        .forEach(function (node) { node.parentNode.removeChild(node); });
+                    ids.forEach(function (id) {
+                        var input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = 'report_ids';
+                        input.value = id;
+                        form.appendChild(input);
+                    });
+                    form.submit();
+                });
+            });
+
+            syncBar();
+        }
+
+        // ---- donut ----
+        // Its own guard, not shared with the select above: the empty-range
+        // branch renders no canvas at all, and a shared early return there
+        // would silently kill the date control too.
+        var canvas = document.getElementById('deployment-donut');
+        if (canvas && window.basecoat && window.basecoat.chart) {
+            var completed = {{ activity_completed_total | int }};
+            var failed = {{ activity_failed_total | int }};
+            window.basecoat.chart(canvas, {
+                type: 'doughnut',
+                labelKey: 'status',
+                // Off: the legend below is hand-authored so it can carry
+                // the per-series counts.
+                legend: false,
+                // Row-level `color` wins over basecoat's default --chart-N
+                // palette, so the donut keeps the same green/red the tiles,
+                // the jobs table and the status pills already use.
+                data: [
+                    { status: 'Completed', jobs: completed, color: 'var(--color-online)' },
+                    { status: 'Failed', jobs: failed, color: 'var(--color-danger)' }
+                ],
+                series: { jobs: { label: 'Jobs' } },
+                // Wider than the 60% default so the centre total has room
+                // to sit inside the ring rather than crowding it.
+                options: { cutout: '72%' }
+            });
+        }
+
+        });
+    })();
+</script>
+{% endblock %}

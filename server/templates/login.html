@@ -1,0 +1,65 @@
+{% extends "auth_base.html" %}
+
+{% block title %}AppEase Login{% endblock %}
+
+{#- Two hard-wrapped lines, so app.css switches off text-wrap:balance.
+    "Report.", not "Resolve.": students report, the technician resolves,
+    and the accent must not claim what the system does not do. -#}
+{% block headline %}<span class="auth-headline-line">Deploy. Track.</span><span class="auth-headline-accent">Report.</span>{% endblock %}
+
+{#- No icons: on a 940px panel they read as decoration; a hairline rule
+    separates the blocks. The panel is aria-hidden, so none of this is
+    announced twice. -#}
+{% block brand_features %}
+    <ul class="auth-brand-features">
+        <li class="auth-brand-feature">
+            <span class="auth-brand-feature-title">Software Installation</span>
+            <span class="auth-brand-feature-line">From one dashboard to every desk.</span>
+        </li>
+        <li class="auth-brand-feature">
+            <span class="auth-brand-feature-title">Equipment Tracking</span>
+            <span class="auth-brand-feature-line">Track it. Trust it.</span>
+        </li>
+        <li class="auth-brand-feature">
+            <span class="auth-brand-feature-title">Problem Reporting</span>
+            <span class="auth-brand-feature-line">Every issue, one scan away.</span>
+        </li>
+    </ul>
+{% endblock %}
+
+{% block heading %}Welcome to AppEase{% endblock %}
+{% block helper %}Sign in to your account to continue{% endblock %}
+
+{% block form %}
+    <form method="post" action="{{ url_for('login') }}" class="auth-form">
+        <div role="group" class="field">
+            {#- Username, not email: an email is optional on every
+                account, so an email field would lock out those without
+                one. -#}
+            <label for="username">Username</label>
+            <input class="input" type="text" id="username" name="username" required
+                   autocomplete="username" placeholder="Enter your username">
+        </div>
+
+        <div role="group" class="field">
+            <div class="auth-label-row">
+                <label for="password">Password</label>
+                <a href="{{ url_for('forgot_password') }}" class="auth-link">Forgot password?</a>
+            </div>
+            <input class="input" type="password" id="password" name="password" required
+                   autocomplete="current-password" placeholder="Enter your password">
+        </div>
+
+        {% if error %}
+            <p class="auth-error">{{ error }}</p>
+        {% endif %}
+
+        <button type="submit" class="btn auth-submit">Sign in</button>
+    </form>
+{% endblock %}
+
+{#- No foot block: .auth-foot:empty collapses the empty footer. -#}
+
+{% block scripts %}
+    <script defer src="{{ url_for('static', filename='js/password-toggle.js') }}"></script>
+{% endblock %}

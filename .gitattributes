@@ -1,0 +1,51 @@
+# Line endings are a project convention in AppEase, not a preference, and
+# core.autocrlf cannot express them: it applies one rule to every text file.
+# Pinning them here means git enforces the convention instead of it surviving
+# on discipline alone, and it stops a fresh clone on another machine handing
+# back files with the wrong endings.
+#
+# .gitattributes beats core.autocrlf wherever the two disagree.
+
+# Default: everything text is CRLF in the working tree. This is what
+# server/*.html, server/*.py, database.py and the .bat files need.
+* text=auto eol=crlf
+
+# ...except these, which are LF on disk by convention.
+*.css text eol=lf
+*.js text eol=lf
+
+# Test files under t/ are LF, unlike the server files they test.
+t/*.py text eol=lf
+t/**/*.py text eol=lf
+
+# Tooling outside the app is LF like t/. *.mjs is JavaScript and follows the
+# *.js rule; without these two lines both fell to the CRLF default above.
+*.mjs text eol=lf
+tools/**/*.py text eol=lf
+
+# Docs and config authored LF - this file included, which no other rule
+# covered, so it would otherwise have fallen to the CRLF default above.
+*.md text eol=lf
+*.json text eol=lf
+.gitattributes text eol=lf
+
+# Never touched. Newline conversion on a binary corrupts it silently - the
+# file still opens in a hex editor, it just no longer works.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.woff2 binary
+*.ttf binary
+*.exe binary
+*.msi binary
+*.db binary
+*.db-wal binary
+*.db-shm binary
+*.pdf binary
+
+# Chocolatey's own records, copied byte for byte as test fixtures. Their line
+# endings are Chocolatey's - mixed CRLF and LF inside one file in places - and
+# t/test_choco_verify.py pins each file's hash, so git must never convert
+# them. Last, so it overrides the *.md-style rules above for anything in here.
+t/fixtures/** -text

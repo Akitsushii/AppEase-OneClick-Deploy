@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<registrySnapshot xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <user>S-1-5-21-1111111111-2222222222-3333333333-1001</user>
+  <keys>
+    <key installerType="Msi" displayName="Google Chrome" displayVersion="142.0.7444.176">
+      <RegistryView>Registry64</RegistryView>
+      <KeyPath>HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{0AA2C178-BF99-3F72-BA87-F6123A1A95C8}</KeyPath>
+      <DefaultValue />
+      <InstallLocation><![CDATA[]]></InstallLocation>
+      <UninstallString><![CDATA[MsiExec.exe /X{0AA2C178-BF99-3F72-BA87-F6123A1A95C8}]]></UninstallString>
+      <HasQuietUninstall>false</HasQuietUninstall>
+      <Publisher><![CDATA[Google LLC]]></Publisher>
+      <InstallDate>20251119</InstallDate>
+      <InstallSource><![CDATA[C:\Users\LabUser\AppData\Local\Temp\chocolatey\GoogleChrome\142.0.7444.176\]]></InstallSource>
+      <Language>1033</Language>
+      <Version>-1912595180</Version>
+      <VersionMajor>142</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <SystemComponent>false</SystemComponent>
+      <WindowsInstaller>true</WindowsInstaller>
+      <NoRemove>false</NoRemove>
+      <NoModify>true</NoModify>
+      <NoRepair>false</NoRepair>
+      <ReleaseType />
+      <ParentKeyName />
+      <LocalPackage><![CDATA[C:\WINDOWS\Installer\1ffbe829.msi]]></LocalPackage>
+    </key>
+  </keys>
+</registrySnapshot>

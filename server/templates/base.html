@@ -1,0 +1,928 @@
+{%- import "_theme_toggle.html" as theme_ui -%}
+<!DOCTYPE html>
+{#- class="dark" is stamped HERE, server-side, by inject_theme(): in an MPA
+    even an inline <head> script runs after the parser has seen this tag,
+    which is a white flash on every click. -#}
+<html lang="en"{% if theme_dark %} class="dark"{% endif %}>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width">
+    {#- THE BLACK FLASH BETWEEN PAGES. Fixed here, not in a stylesheet: the
+        flash happens before any stylesheet has loaded.
+
+        1. Without color-scheme, a dark-mode OS paints its canvas dark.
+        2. bg-canvas is on <body>; the root canvas takes <html>'s colour.
+
+        Each literal must equal its theme's --color-canvas: light lives in
+        tailwind-input.css's @theme, dark in app.css's html.dark block. A
+        var() cannot be used, as no stylesheet has loaded yet; app.css's own
+        html rule takes over by source order once it arrives. If a canvas
+        colour changes, change its literal too (test_dark_mode.py checks).
+
+        BOTH LINES ARE THEME-CONDITIONAL: hardcoded light, a dark page
+        flashes WHITE and gets light scrollbars. Both come from
+        inject_theme(), so there is no script to run late. -#}
+    <meta name="color-scheme" content="{{ theme }}">
+    <style>html { background-color: {{ '#121113' if theme_dark else '#ffffff' }}; }</style>
+    <title>{% block title %}AppEase{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/appease-appiconv2.svg') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/appease-appicon-32v2.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/appease-appicon-180v2.png') }}">
+    <link rel="preload" href="{{ url_for('static', filename='fonts/Outfit-Variable.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <script>
+        (function () {
+            try {
+                if (document.cookie.indexOf('sidebar_collapsed=1') !== -1) {
+                    document.documentElement.classList.add('sidebar-collapsed');
+                }
+            } catch (e) {}
+        })();
+    </script>
+</head>
+<body class="bg-canvas font-sans text-ink">
+    <aside id="app-sidebar" class="fixed left-0 top-0 h-screen w-64 border-r border-sidebar-border bg-sidebar text-sidebar-text">
+        <div class="brand-head p-2">
+            <div class="flex items-center gap-3">
+                {#- Two marks, swapped by the nav's own .sb-icon/.sb-label
+                    pair. Collapsed: the ring alone (viewBox 32 16 20 20),
+                    as the 68px rail needs a SQUARE mark. Expanded:
+                    appease-icon.svg cropped to "0 16 60 20", as the
+                    asset's box is 69% empty vertically.
+
+                    Inlined so CSS can swap them with no extra request; keep
+                    in step with static/img/. The wordmark is HTML text: the
+                    lockup SVGs bake in Inter, which lab PCs lack. -#}
+                <svg class="sb-icon shrink-0" style="width: 22px; height: 22px;" viewBox="32 16 20 20" fill="none" aria-hidden="true">
+                    <circle cx="42" cy="26" r="7.5" fill="none" stroke="var(--color-primary)" stroke-width="3.6"></circle>
+                </svg>
+                <div class="sb-label flex items-center gap-3">
+                    <svg class="shrink-0" style="width: 51px; height: 17px;" viewBox="0 16 60 20" fill="none" aria-hidden="true">
+                        <rect x="2" y="21" width="9" height="9" rx="2.5" fill="var(--logo-sq-1)"></rect>
+                        <rect x="16" y="21" width="9" height="9" rx="2.5" fill="var(--logo-sq-2)"></rect>
+                        <rect x="30" y="21" width="9" height="9" rx="2.5" fill="var(--logo-sq-3)"></rect>
+                        <circle cx="50" cy="25.5" r="6.5" fill="none" stroke="var(--color-primary)" stroke-width="3.2"></circle>
+                    </svg>
+                    <div>
+                        <h1 class="text-sm font-semibold leading-tight tracking-tight text-ink">AppEase</h1>
+                        <p class="text-xs leading-tight text-sidebar-muted">BulSU Meneses Campus</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <nav class="px-3 py-4">
+            <section>
+            {% if session.get('admin_role') == 'admin' %}
+                <div role="group" aria-labelledby="sb-group-main">
+                    <h3 id="sb-group-main" class="sb-label px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-sidebar-label">Main</h3>
+                    <ul>
+                        <li>
+                            <button type="button" id="dashboard-nav-toggle" data-subnav-toggle data-subnav-target="dashboard-subnav" data-subnav-chevron="dashboard-nav-chevron" data-tip="Dashboard"
+                                    {% if request.endpoint in ['dashboard', 'computers_page', 'equipment_page'] %}data-active="true"{% endif %}>
+                                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>
+                                <span class="sb-label">Dashboard</span>
+                                <span class="sb-label ml-auto" id="dashboard-nav-chevron">{% if request.endpoint in ['dashboard', 'computers_page', 'equipment_page'] %}&minus;{% else %}+{% endif %}</span>
+                            </button>
+                            <ul id="dashboard-subnav" class="sb-label {% if request.endpoint not in ['dashboard', 'computers_page', 'equipment_page'] %}hidden{% endif %}">
+                                <li><a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}data-active="true"{% endif %}><span class="sb-label">Overview</span></a></li>
+                                <li><a href="{{ url_for('computers_page') }}" {% if request.endpoint == 'computers_page' %}data-active="true"{% endif %}><span class="sb-label">Lab Computers</span></a></li>
+                                <li><a href="{{ url_for('equipment_page') }}" {% if request.endpoint == 'equipment_page' %}data-active="true"{% endif %}><span class="sb-label">Equipment</span></a></li>
+                            </ul>
+                        </li>
+                        {#- Beside Software Library (what you deploy),
+                            not under Dashboard: it is not a view of it. -#}
+                        <li>
+                            <a href="{{ url_for('deploy_page') }}" data-tip="Deploy Software" {% if request.endpoint == 'deploy_page' %}data-active="true"{% endif %}>
+                                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91 0Z" /><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2Z" /><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" /><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" /></svg>
+                                <span class="sb-label">Deploy Software</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="{{ url_for('software_library') }}" data-tip="Software Library" {% if request.endpoint == 'software_library' %}data-active="true"{% endif %}>
+                                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /><path d="m7.5 4.27 9 5.15" /></svg>
+                                <span class="sb-label">Software Library</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            {% endif %}
+
+            {#- Ungated, and NOT inside System, which is admin-only: every
+                account has a profile, faculty included. -#}
+            <div role="group" aria-labelledby="sb-group-account">
+                <h3 id="sb-group-account" class="sb-label mt-6 px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-sidebar-label">Account</h3>
+                <ul>
+                    <li>
+                        <a href="{{ url_for('settings') }}" data-tip="Settings" {% if request.endpoint == 'settings' %}data-active="true"{% endif %}>
+                            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.2.61.74 1.05 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                            <span class="sb-label">Settings</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            <div role="group" aria-labelledby="sb-group-reports">
+                <h3 id="sb-group-reports" class="sb-label mt-6 px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-sidebar-label">Reports</h3>
+                <ul>
+                    <li>
+                        <a href="{{ url_for('problem_reports_page') }}" data-tip="Problem Reports" {% if request.endpoint == 'problem_reports_page' %}data-active="true"{% endif %}>
+                            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>
+                            <span class="sb-label">Problem Reports</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{{ url_for('notifications_page') }}" data-tip="Notifications" {% if request.endpoint == 'notifications_page' %}data-active="true"{% endif %}>
+                            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0" /><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" /></svg>
+                            <span class="sb-label">Notifications</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+
+            {% if session.get('admin_role') == 'admin' %}
+                <div role="group" aria-labelledby="sb-group-system">
+                    <h3 id="sb-group-system" class="sb-label mt-6 px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-sidebar-label">System</h3>
+                    <ul>
+                        <li>
+                            <button type="button" id="admin-nav-toggle" data-subnav-toggle data-subnav-target="admin-subnav" data-subnav-chevron="admin-nav-chevron" data-tip="Manage Accounts"
+                                    {% if request.endpoint in ['manage_admins', 'audit_trail_page'] %}data-active="true"{% endif %}>
+                                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                                <span class="sb-label">Manage Accounts</span>
+                                <span class="sb-label ml-auto" id="admin-nav-chevron">{% if request.endpoint in ['manage_admins', 'audit_trail_page'] %}&minus;{% else %}+{% endif %}</span>
+                            </button>
+                            <ul id="admin-subnav" class="sb-label {% if request.endpoint not in ['manage_admins', 'audit_trail_page'] %}hidden{% endif %}">
+                                <li><a href="{{ url_for('manage_admins') }}" {% if request.endpoint == 'manage_admins' %}data-active="true"{% endif %}><span class="sb-label">Accounts</span></a></li>
+                                <li><a href="{{ url_for('audit_trail_page') }}" {% if request.endpoint == 'audit_trail_page' %}data-active="true"{% endif %}><span class="sb-label">Audit Trail</span></a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            {% endif %}
+            </section>
+        </nav>
+
+        {#- One row, to leave the rail to the nav. Logout stays a POST form
+            (the route is POST-only), inside the menu. -#}
+        {% set admin_display_name = session.get('admin_full_name') or session.get('admin_username', 'admin') %}
+        <div id="admin-tile-root" class="absolute bottom-0 w-full border-t border-sidebar-border px-4 py-3">
+            <div class="relative">
+                {#- Opens upward: the tile is pinned to the rail's bottom.
+                    An INLINE STYLE, not new utilities, which a stale
+                    tailwind.css would lack. -#}
+                <div id="admin-menu" style="position: absolute; bottom: 100%; left: 0; margin-bottom: 8px; z-index: 20;"
+                     class="skin-pop hidden w-full overflow-hidden rounded-lg border border-sidebar-border bg-canvas shadow-raised">
+                    <a href="{{ url_for('settings') }}" class="block px-3 py-2 text-sm text-sidebar-text transition hover:bg-sidebar-hover hover:text-ink">Settings</a>
+                    <form method="post" action="{{ url_for('logout') }}" class="border-t border-sidebar-border">
+                        <button type="submit"
+                                data-confirm
+                                data-confirm-title="Log out"
+                                data-confirm-message="Log out of AppEase? Any deployment already running keeps going - the agents do not need you signed in."
+                                data-confirm-action="Log out"
+                                class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-sidebar-text transition hover:bg-sidebar-hover hover:text-ink">
+                            <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" x2="9" y1="12" y2="12" /></svg>
+                            Log out
+                        </button>
+                    </form>
+                </div>
+
+                <button type="button" id="admin-tile" data-tip="{{ admin_display_name }}" aria-haspopup="true" aria-expanded="false" aria-controls="admin-menu"
+                        class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition hover:bg-sidebar-hover">
+                    {#- The initials are the fallback child, so a broken
+                        image shows them rather than a torn-image icon. -#}
+                    {% set name_parts = admin_display_name.split() %}
+                    <span class="avatar shrink-0" data-size="sm" aria-hidden="true">
+                        {% if current_avatar_url %}<img src="{{ current_avatar_url }}" alt="" onerror="this.remove()">{% endif %}
+                        <span>{% if name_parts | length > 1 %}{{ (name_parts[0][0] ~ name_parts[-1][0]) | upper }}{% else %}{{ admin_display_name[:2] | upper }}{% endif %}</span>
+                    </span>
+                    <span style="min-width: 0;" class="sb-label flex-1">
+                        <span class="block truncate text-sm font-medium text-ink">{{ admin_display_name }}</span>
+                        <span class="block truncate text-xs text-sidebar-muted">{{ session.get('admin_role', 'admin') | role_label }}</span>
+                    </span>
+                    <span class="sb-label shrink-0 text-sidebar-muted" aria-hidden="true">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg>
+                    </span>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <div class="app-content ml-64 flex min-h-screen flex-col">
+        {#- bg-canvas, not bg-white: in dark mode bg-white would be a white
+            band across every page. -#}
+        <header class="app-topbar flex h-14 items-center justify-between border-b border-line bg-canvas px-6">
+            <div class="flex items-center gap-3">
+                {% if session.get('admin_id') %}
+                <button type="button" id="sidebar-toggle" aria-label="Toggle sidebar" class="topbar-icon-btn inline-flex items-center justify-center rounded-md text-label hover:bg-subtle"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 3v18" /></svg></button>
+                {% endif %}
+                {#- The first crumb is the page's sidebar section, keyed on
+                    the endpoints the sidebar highlights by, so they cannot
+                    disagree. A page missing from the map shows its title
+                    alone rather than a wrong section. -#}
+                {%- set crumb_sections = {
+                    'dashboard': 'Dashboard', 'computers_page': 'Dashboard', 'equipment_page': 'Dashboard',
+                    'deploy_page': 'Main', 'software_library': 'Main',
+                    'settings': 'Account', 'change_password_page': 'Account',
+                    'problem_reports_page': 'Reports', 'notifications_page': 'Reports',
+                    'manage_admins': 'System', 'audit_trail_page': 'System',
+                } -%}
+                {%- set crumb_section = crumb_sections.get(request.endpoint) -%}
+                <nav class="breadcrumb" aria-label="Breadcrumb">
+                    <ol>
+                        {% if crumb_section %}
+                        {#- The one section that is also a page. #}
+                        <li>{% if crumb_section == 'Dashboard' %}<a href="{{ url_for('dashboard') }}">Dashboard</a>{% else %}<span>{{ crumb_section }}</span>{% endif %}</li>
+                        <li aria-hidden="true"><svg data-rtl-flip class="lucide lucide-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6" /></svg></li>
+                        {% endif %}
+                        <li><span aria-current="page">{% block page_title %}AppEase{% endblock %}</span></li>
+                    </ol>
+                </nav>
+            </div>
+            <div class="flex items-center gap-3">
+                {% if session.get('admin_id') %}
+                    {#- The same macro as Settings > Appearance, so the
+                        two toggles cannot drift. -#}
+                    {{ theme_ui.theme_toggle('topbar', theme_dark) }}
+                    <div class="relative" id="notif-root">
+                        <button type="button" id="notif-bell" aria-label="Notifications"
+                                class="topbar-icon-btn relative inline-flex items-center justify-center rounded-full text-label hover:bg-subtle">
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                            </svg>
+                            <span id="notif-badge"
+                                  class="skin-badge-pulse absolute -right-1.5 -top-1.5 hidden min-w-[18px] badge-count rounded-full px-1 text-center text-[11px] font-semibold leading-[18px]"></span>
+                        </button>
+                        {#- Severity rides on a small pill, not the row
+                            background, so a few warnings do not read as
+                            one solid block. -#}
+                        <div id="notif-panel"
+                             class="skin-pop notif-panel absolute right-0 z-50 mt-2 hidden w-96 rounded-xl border border-line bg-canvas shadow-raised">
+                            <div class="notif-head">
+                                <a href="{{ url_for('notifications_page') }}" class="notif-head-title">
+                                    Notifications
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+                                </a>
+                                <span id="notif-newcount" class="notif-newcount hidden"></span>
+                                {#- Explicit: opening the panel marks
+                                    nothing read (see notifications.js). -#}
+                                <button type="button" id="notif-mark-read" class="notif-markread">Mark all as read</button>
+                            </div>
+                            <div class="notif-filters">
+                                <button type="button" data-notif-filter="" class="notif-filter">All</button>
+                                <button type="button" data-notif-filter="error" class="notif-filter">Errors</button>
+                                <button type="button" data-notif-filter="warning" class="notif-filter">Warnings</button>
+                                <button type="button" data-notif-filter="info" class="notif-filter">Info</button>
+                            </div>
+                            <div id="notif-list" class="scrollbar-sm notif-list max-h-96 overflow-y-auto"></div>
+                            <div id="notif-empty" class="px-4 py-8 text-center text-sm text-muted">No notifications yet.</div>
+                            <a href="{{ url_for('notifications_page') }}" class="notif-foot">Show all notifications</a>
+                        </div>
+                    </div>
+                    <div class="relative" id="profile-root">
+                        {#- The glyph is the no-picture case, not initials:
+                            beside the bell, initials read as a badge. -#}
+                        <button type="button" id="profile-button" aria-label="Account menu"
+                                class="topbar-icon-btn relative inline-flex items-center justify-center rounded-full text-label hover:bg-subtle">
+                            {% if current_avatar_url %}
+                                <span class="avatar topbar-avatar" data-size="sm">
+                                    <img src="{{ current_avatar_url }}" alt="" onerror="this.remove()">
+                                </span>
+                            {% else %}
+                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M20 21a8 8 0 0 0-16 0" />
+                                    <circle cx="12" cy="7" r="4" />
+                                </svg>
+                            {% endif %}
+                        </button>
+                        <div id="profile-panel"
+                             class="skin-pop absolute right-0 z-50 mt-2 hidden w-80 rounded-xl border border-line bg-canvas shadow-raised">
+                            <div class="flex items-center gap-3 border-b border-rule px-4 py-3">
+                                {% set panel_name = session.get('admin_full_name') or session.get('admin_username', 'admin') %}
+                                {% set panel_parts = panel_name.split() %}
+                                <span class="avatar shrink-0" aria-hidden="true">
+                                    {% if current_avatar_url %}<img src="{{ current_avatar_url }}" alt="" onerror="this.remove()">{% endif %}
+                                    <span>{% if panel_parts | length > 1 %}{{ (panel_parts[0][0] ~ panel_parts[-1][0]) | upper }}{% else %}{{ panel_name[:2] | upper }}{% endif %}</span>
+                                </span>
+                                <div style="min-width: 0;">
+                                    <p class="truncate text-sm font-semibold text-ink">{{ panel_name }}</p>
+                                    <p class="text-xs text-muted">{{ session.get('admin_role', 'admin') | role_label }}</p>
+                                </div>
+                            </div>
+                            <a href="{{ url_for('settings') }}" class="block px-4 py-2 text-sm font-medium text-label hover:bg-subtle">Settings</a>
+                            <form method="post" action="{{ url_for('logout') }}" class="border-t border-rule">
+                                <button type="submit"
+                                        data-confirm
+                                        data-confirm-title="Log out"
+                                        data-confirm-message="Log out of AppEase? Any deployment already running keeps going - the agents do not need you signed in."
+                                        data-confirm-action="Log out"
+                                        class="block w-full px-4 py-2 text-left menu-item-danger text-sm font-medium text-danger">Log out</button>
+                            </form>
+                        </div>
+                    </div>
+                {% endif %}
+                {#- One slot, two roles. FACULTY get the report form in a NEW
+                    tab: /report has no link back into the app. ADMINS get the
+                    live computer pill, server-rendered until notifications.js
+                    polls; it links to an admin-only page, and the server sends
+                    faculty no counts. -#}
+                {% if session.get('admin_role') != 'admin' %}
+                    <a href="{{ url_for('student_problem_report_form') }}" target="_blank" rel="noopener" id="report-problem-action"
+                       style="border: 1px solid var(--color-line);"
+                       class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-label transition hover:bg-subtle"
+                       title="Open the problem report form in a new tab">
+                        <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+                        <span>Report a Problem</span>
+                    </a>
+                {% endif %}
+                {% if session.get('admin_role') == 'admin' %}
+                    {#- Lab Computers: the count is about the machines. -#}
+                    <a href="{{ url_for('computers_page') }}" id="agent-status"
+                       style="border: 1px solid var(--color-line);"
+                       class="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-label transition hover:bg-subtle"
+                       title="Computers reporting in to the server - open Lab Computers">
+                        <span id="agent-status-dot" style="width: 8px; height: 8px; background-color: var(--color-faint);" class="inline-block shrink-0 rounded-full" aria-hidden="true"></span>
+                        <span id="agent-status-text">{{ agents_online }} of {{ agents_total }} computer{{ '' if agents_total == 1 else 's' }} online{% if agents_retired %} &middot; {{ agents_retired }} retired{% endif %}</span>
+                    </a>
+                {% endif %}
+                <div>{% block topbar_actions %}{% endblock %}</div>
+            </div>
+        </header>
+
+        <main class="flex-1 p-6">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Shared confirmation modal. data-confirm on a submit button submits
+         the button's own form once the person agrees, so its fields survive;
+         a separate POST would throw them away. openDeleteConfirm(button)
+         instead POSTs the button's data-delete-url through the form below.
+
+         The confirm button swaps between .tone-danger-solid (a plain app.css
+         class: Tailwind compiles no destructive utility here) and
+         bg-primary. -->
+    <div id="delete-confirm-overlay" class="deploy-backdrop hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div id="delete-confirm-panel" class="w-full max-w-md rounded-xl border border-line bg-canvas p-6 shadow-raised">
+            <h4 id="delete-confirm-title" class="text-base font-semibold text-ink">Confirm deletion</h4>
+            <p id="delete-confirm-message" class="mt-2 text-sm text-muted"></p>
+            <div class="mt-5 flex justify-end gap-2">
+                <button type="button" id="delete-confirm-cancel" class="rounded-md border border-field px-3 py-1.5 text-sm font-medium text-label hover:bg-subtle">Cancel</button>
+                <form id="delete-confirm-form" method="post" action="" style="margin: 0;">
+                    <button type="submit" id="delete-confirm-accept" class="tone-danger-solid rounded-md px-3 py-1.5 text-sm font-medium text-white hover:opacity-90">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" aria-live="polite"></div>
+    <script defer src="{{ url_for('static', filename='js/toasts.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='js/password-toggle.js') }}"></script>
+    <!-- Must load AFTER password-toggle.js: the checklist anchors itself to
+         the .pw-wrap that script creates. -->
+    <script defer src="{{ url_for('static', filename='js/password-policy.js') }}"></script>
+    {% if session.get('admin_id') %}
+        <script defer src="{{ url_for('static', filename='js/notifications.js') }}"></script>
+    {% endif %}
+    <script>
+        // Admin tile menu. Show/hide via Tailwind's .hidden - no app.css rule
+        // targets these ids, so nothing can out-specify it.
+        function closeAdminMenu() {
+            var menu = document.getElementById('admin-menu');
+            var tile = document.getElementById('admin-tile');
+            if (!menu || menu.classList.contains('hidden')) { return; }
+            menu.classList.add('hidden');
+            if (tile) { tile.setAttribute('aria-expanded', 'false'); }
+        }
+
+        (function () {
+            var root = document.getElementById('admin-tile-root');
+            var tile = document.getElementById('admin-tile');
+            var menu = document.getElementById('admin-menu');
+            if (!root || !tile || !menu) { return; }
+
+            tile.addEventListener('click', function (event) {
+                event.stopPropagation();
+                var isOpen = !menu.classList.contains('hidden');
+                menu.classList.toggle('hidden', isOpen);
+                tile.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+            });
+
+            document.addEventListener('click', function (event) {
+                if (!root.contains(event.target)) { closeAdminMenu(); }
+            });
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    var wasOpen = !menu.classList.contains('hidden');
+                    closeAdminMenu();
+                    // Focus returns to the opener, or it is left nowhere
+                    // once the menu disappears.
+                    if (wasOpen) { tile.focus(); }
+                }
+            });
+        })();
+
+        (function () {
+            var root = document.documentElement;
+            var aside = document.getElementById('app-sidebar');
+            var btn = document.getElementById('sidebar-toggle');
+
+            // Hover-peek: while COLLAPSED, hovering opens the full sidebar
+            // over the page by swapping sidebar-collapsed for sidebar-peek,
+            // not by styling a third state, so labels and tooltips behave as
+            // they do.
+            //
+            // The cookie is NEVER written here: a peek is a glance, not a
+            // preference.
+            var peekTimer = null;
+            // Long enough to survive clipping the rail's edge on the way past,
+            // short enough not to feel sticky.
+            var PEEK_CLOSE_MS = 160;
+
+            function isPeeking() { return root.classList.contains('sidebar-peek'); }
+
+            function cancelPeekTimer() {
+                if (peekTimer !== null) { window.clearTimeout(peekTimer); peekTimer = null; }
+            }
+
+            function openPeek() {
+                // Cancel any pending close FIRST: re-entering must call off a
+                // queued close even while a peek is open, or the rail shuts
+                // under the cursor.
+                cancelPeekTimer();
+                // Only when collapsed: pinned open, hover does nothing.
+                if (!root.classList.contains('sidebar-collapsed')) { return; }
+                root.classList.remove('sidebar-collapsed');
+                root.classList.add('sidebar-peek');
+            }
+
+            function endPeek() {
+                cancelPeekTimer();
+                if (!isPeeking()) { return; }
+                root.classList.remove('sidebar-peek');
+                root.classList.add('sidebar-collapsed');
+            }
+
+            function scheduleEndPeek() {
+                if (!isPeeking()) { return; }
+                cancelPeekTimer();
+                peekTimer = window.setTimeout(function () {
+                    peekTimer = null;
+                    // Never collapse under an open account menu: it would
+                    // shrink to the 36px rail mid-click. Wait and re-check.
+                    var menu = document.getElementById('admin-menu');
+                    if (menu && !menu.classList.contains('hidden')) {
+                        scheduleEndPeek();
+                        return;
+                    }
+                    endPeek();
+                }, PEEK_CLOSE_MS);
+            }
+
+            if (aside) {
+                // Pointer hover only where hover exists: on a touchscreen a
+                // tap fires mouseenter with no mouseleave, so the rail sticks.
+                var canHover = true;
+                try {
+                    canHover = !window.matchMedia ||
+                        window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+                } catch (e) { canHover = true; }
+
+                if (canHover) {
+                    aside.addEventListener('mouseenter', openPeek);
+                    aside.addEventListener('mouseleave', scheduleEndPeek);
+                }
+
+                // Tabbing into the collapsed rail opens it too, so the links
+                // are readable rather than icon guesswork.
+                aside.addEventListener('focusin', openPeek);
+                aside.addEventListener('focusout', function (event) {
+                    if (!aside.contains(event.relatedTarget)) { scheduleEndPeek(); }
+                });
+            }
+
+            if (!btn) { return; }
+            btn.addEventListener('click', function () {
+                // Mid-peek a plain toggle would ADD sidebar-collapsed back and
+                // look dead. A click during a peek means "keep it open".
+                if (isPeeking()) {
+                    cancelPeekTimer();
+                    root.classList.remove('sidebar-peek');
+                    closeAdminMenu();
+                    document.cookie = 'sidebar_collapsed=0; path=/; max-age=31536000; SameSite=Lax';
+                    return;
+                }
+                var collapsed = root.classList.toggle('sidebar-collapsed');
+                closeAdminMenu();
+                document.cookie = 'sidebar_collapsed=' + (collapsed ? '1' : '0') + '; path=/; max-age=31536000; SameSite=Lax';
+            });
+        })();
+    </script>
+    <script>
+        // ---------- Theme toggle ----------
+        // ONE controller for every [data-theme-toggle]. The server already
+        // stamped class="dark" and aria-pressed, so this handles CHANGES only
+        // and nothing here is on the paint path.
+        //
+        // Cookie, not localStorage: web storage is prohibited here, and
+        // Basecoat's theme.set() writes it while its runtime never reads it
+        // back, so the theme would reset every navigation. The attributes
+        // match Basecoat's switcher, so the CSS stays theirs.
+        (function () {
+            var buttons = document.querySelectorAll('[data-theme-toggle]');
+            if (!buttons.length) { return; }
+            var root = document.documentElement;
+
+            function label(isDark) {
+                return isDark ? 'Switch to light mode' : 'Switch to dark mode';
+            }
+
+            function sync(isDark) {
+                // Every button, not just the clicked one: on Settings both are
+                // on screen at once, and updating only one would leave the
+                // other announcing the wrong action to a screen reader.
+                Array.prototype.forEach.call(buttons, function (button) {
+                    button.setAttribute('aria-pressed', isDark ? 'true' : 'false');
+                    button.setAttribute('aria-label', label(isDark));
+                    button.setAttribute('data-tooltip', label(isDark));
+                });
+            }
+
+            Array.prototype.forEach.call(buttons, function (button) {
+                button.addEventListener('click', function () {
+                    var isDark = root.classList.toggle('dark');
+                    // Same attributes as sidebar_collapsed, for the same
+                    // reason: path=/ so every page sees it, a year so it is
+                    // not a session preference, SameSite=Lax because nothing
+                    // cross-site should be setting the theme.
+                    document.cookie = 'theme=' + (isDark ? 'dark' : 'light') +
+                        '; path=/; max-age=31536000; SameSite=Lax';
+                    // The <meta name="color-scheme"> written at render time is
+                    // now stale, and it is what decides the colour of native
+                    // scrollbars and form controls. Left alone, flipping to
+                    // dark leaves a white scrollbar until the next navigation.
+                    var meta = document.querySelector('meta[name="color-scheme"]');
+                    if (meta) { meta.setAttribute('content', isDark ? 'dark' : 'light'); }
+                    sync(isDark);
+                });
+            });
+        })();
+    </script>
+    <script>
+        (function () {
+            // Any [data-subnav-toggle] names its panel and chevron by id, so a
+            // new group needs markup only.
+            var toggles = document.querySelectorAll('[data-subnav-toggle]');
+            Array.prototype.forEach.call(toggles, function (toggle) {
+                var subnav = document.getElementById(toggle.getAttribute('data-subnav-target'));
+                var chevron = document.getElementById(toggle.getAttribute('data-subnav-chevron'));
+                if (!subnav) {
+                    return;
+                }
+                toggle.addEventListener('click', function () {
+                    var isHidden = subnav.classList.toggle('hidden');
+                    if (chevron) {
+                        chevron.textContent = isHidden ? '+' : '\u2212';
+                    }
+                });
+            });
+        })();
+    </script>
+    <script>
+        (function () {
+            var profileButton = document.getElementById('profile-button');
+            var profilePanel = document.getElementById('profile-panel');
+            if (!profileButton || !profilePanel) {
+                return;
+            }
+
+            // .hidden cannot be transitioned, so open() forces a reflow before
+            // adding .profile-panel-open, and close() re-adds .hidden only
+            // after the fade. The 140ms must stay in sync with app.css.
+            var profileCloseTimer = null;
+            var profileOpen = false;
+
+            function openProfilePanel() {
+                if (profileCloseTimer !== null) {
+                    window.clearTimeout(profileCloseTimer);
+                    profileCloseTimer = null;
+                }
+                profilePanel.classList.remove('hidden');
+                void profilePanel.offsetWidth;
+                profilePanel.classList.add('profile-panel-open');
+                profileOpen = true;
+            }
+
+            function closeProfilePanel() {
+                profilePanel.classList.remove('profile-panel-open');
+                profileOpen = false;
+                if (profileCloseTimer !== null) {
+                    window.clearTimeout(profileCloseTimer);
+                }
+                profileCloseTimer = window.setTimeout(function () {
+                    profileCloseTimer = null;
+                    if (!profilePanel.classList.contains('profile-panel-open')) {
+                        profilePanel.classList.add('hidden');
+                    }
+                }, 140);
+            }
+
+            profileButton.addEventListener('click', function (event) {
+                event.stopPropagation();
+                if (profileOpen) {
+                    closeProfilePanel();
+                } else {
+                    openProfilePanel();
+                }
+            });
+
+            document.addEventListener('click', function (event) {
+                if (profileOpen && !profilePanel.contains(event.target) && event.target !== profileButton) {
+                    closeProfilePanel();
+                }
+            });
+        })();
+    </script>
+    <script>
+        (function () {
+            // Shared destructive-action confirm modal (see the markup above).
+            // Same reflow-then-fade / .modal-open-is-truth pattern as the
+            // duplicate-detection and Details dialogs; 140ms close timer must
+            // stay in sync with app.css.
+            var overlay = document.getElementById('delete-confirm-overlay');
+            var titleEl = document.getElementById('delete-confirm-title');
+            var message = document.getElementById('delete-confirm-message');
+            var form = document.getElementById('delete-confirm-form');
+            var cancelBtn = document.getElementById('delete-confirm-cancel');
+            var acceptBtn = document.getElementById('delete-confirm-accept');
+            if (!overlay || !titleEl || !message || !form || !cancelBtn || !acceptBtn) {
+                return;
+            }
+
+            var closeTimer = null;
+            // Set when a [data-confirm] button was agreed to, so the resulting
+            // programmatic submit is not intercepted a second time and loop.
+            var passThrough = null;
+
+            function show() {
+                if (closeTimer !== null) {
+                    window.clearTimeout(closeTimer);
+                    closeTimer = null;
+                }
+                overlay.classList.remove('hidden');
+                // Force a reflow so the opacity:0 start is painted before
+                // .modal-open lands, or the transition is skipped.
+                void overlay.offsetWidth;
+                overlay.classList.add('modal-open');
+                // Focus the safe choice, so Enter cancels.
+                cancelBtn.focus();
+            }
+
+            function setTone(tone) {
+                if (tone === 'primary') {
+                    acceptBtn.classList.remove('tone-danger-solid');
+                    acceptBtn.classList.add('bg-primary');
+                } else {
+                    acceptBtn.classList.remove('bg-primary');
+                    acceptBtn.classList.add('tone-danger-solid');
+                }
+            }
+
+            window.openDeleteConfirm = function (button) {
+                var label = button.getAttribute('data-confirm-label') || 'this item';
+                titleEl.textContent = 'Confirm deletion';
+                message.textContent = 'Delete ' + label + '? This cannot be undone.';
+                acceptBtn.textContent = 'Delete';
+                setTone('danger');
+                // Route through the modal's own POST form.
+                form.action = button.getAttribute('data-delete-url') || '';
+                pendingForm = null;
+                show();
+            };
+
+            // ---- data-confirm on a form submit button -----------------
+            // requestSubmit(), not submit(): submit() skips HTML5 validation
+            // and every submit listener, bypassing the password policy and the
+            // required-field rules.
+            var pendingForm = null;
+            var pendingButton = null;
+
+            document.addEventListener('click', function (event) {
+                var button = event.target.closest ? event.target.closest('[data-confirm]') : null;
+                if (!button || button === passThrough) {
+                    return;
+                }
+                var ownForm = button.form || button.closest('form');
+                if (!ownForm) {
+                    return;
+                }
+                // Let the browser show its own field errors first: no point
+                // asking someone to confirm a submit that cannot happen.
+                if (ownForm.checkValidity && !ownForm.checkValidity()) {
+                    return;
+                }
+
+                event.preventDefault();
+                pendingForm = ownForm;
+                pendingButton = button;
+                form.action = '';
+                titleEl.textContent = button.getAttribute('data-confirm-title') || 'Please confirm';
+                message.textContent = button.getAttribute('data-confirm-message') || 'Continue?';
+                acceptBtn.textContent = button.getAttribute('data-confirm-action') || 'Continue';
+                setTone(button.getAttribute('data-confirm-tone') === 'danger' ? 'danger' : 'primary');
+                show();
+            });
+
+            form.addEventListener('submit', function (event) {
+                if (!pendingForm) {
+                    // A real destructive action - let the modal form POST.
+                    return;
+                }
+                event.preventDefault();
+                var target = pendingForm;
+                var via = pendingButton;
+                pendingForm = null;
+                pendingButton = null;
+                passThrough = via;
+                closeDeleteConfirm();
+                if (target.requestSubmit) {
+                    target.requestSubmit(via && via.type === 'submit' ? via : undefined);
+                } else if (via) {
+                    // Very old browsers: click again, now waved through.
+                    via.click();
+                } else {
+                    target.submit();
+                }
+                passThrough = null;
+            });
+
+            // ---- count-up on KPI numbers -------------------------------
+            //
+            // Any element with data-countup animates from 0 to whatever the
+            // SERVER already rendered inside it. The final number is in the
+            // markup before this runs, so with JavaScript off, or if this
+            // throws, the correct figure is simply there - the animation can
+            // only ever be decoration over a page that is already right.
+            //
+            // Anything that is not a plain integer (a dash, a percentage, an
+            // em dash for "none") is left alone rather than parsed into NaN.
+            (function () {
+                var targets = document.querySelectorAll('[data-countup]');
+                if (!targets.length) {
+                    return;
+                }
+                var reduced = window.matchMedia
+                    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+                Array.prototype.forEach.call(targets, function (el) {
+                    var finalText = (el.textContent || '').trim();
+                    if (!/^\d+$/.test(finalText)) {
+                        return;
+                    }
+                    var target = parseInt(finalText, 10);
+                    // Counting up to 0, or to 1, is a worse experience than
+                    // just showing it.
+                    if (reduced || target < 2) {
+                        return;
+                    }
+                    // The cards are tabular-nums, so the box does not
+                    // resize and jitter as the digits change.
+                    var duration = 700;
+                    var started = null;
+                    el.textContent = '0';
+                    function step(now) {
+                        if (started === null) { started = now; }
+                        var progress = Math.min((now - started) / duration, 1);
+                        // Ease-out: fast at the start, settling at the end, so
+                        // the eye lands on the final number rather than on the
+                        // motion.
+                        var eased = 1 - Math.pow(1 - progress, 3);
+                        el.textContent = String(Math.round(target * eased));
+                        if (progress < 1) {
+                            window.requestAnimationFrame(step);
+                        } else {
+                            // Set from the ORIGINAL string, never from the
+                            // rounded arithmetic, so the number on screen at
+                            // rest is exactly what the server sent.
+                            el.textContent = finalText;
+                        }
+                    }
+                    window.requestAnimationFrame(step);
+                });
+            })();
+
+            // ---- busy state on slow submits ----------------------------
+            //
+            // Reset password and Create Account wait on an SMTP round trip, so
+            // for a couple of seconds the page looks like nothing happened and
+            // the natural response is to click again - which on Reset means a
+            // SECOND generated password, invalidating the one already sent.
+            //
+            // Declarative, on the document, so any future slow button only
+            // needs data-busy. Bound in the CAPTURE phase: the confirm handler
+            // above calls requestSubmit(), and a bubble-phase listener on the
+            // same event would be racing it.
+            //
+            // There is nothing to undo afterwards - every one of these posts
+            // ends in a redirect, so the button is replaced by a fresh page.
+            //
+            // window.markBusy is the one place the busy look is made, so a
+            // confirm dialog's own button (Reset password, in data-table.js)
+            // shows exactly the same thing.
+            window.markBusy = function (busyButton) {
+                if (!busyButton || busyButton.getAttribute('data-busy-on') === '1') {
+                    return;
+                }
+                busyButton.setAttribute('data-busy-on', '1');
+                busyButton.classList.add('is-busy');
+
+                var spinner = document.createElement('span');
+                spinner.className = 'busy-spinner';
+                // Inline, not a utility class: a missing class fails
+                // silently, and a width-less inline span is invisible.
+                spinner.style.display = 'inline-block';
+                spinner.style.verticalAlign = 'middle';
+                spinner.style.marginRight = '8px';
+
+                var label = document.createElement('span');
+                label.style.verticalAlign = 'middle';
+                label.textContent = busyButton.getAttribute('data-busy') || 'Working...';
+
+                busyButton.textContent = '';
+                busyButton.appendChild(spinner);
+                busyButton.appendChild(label);
+                // These buttons carry no name or value, so nothing drops out
+                // of the POST by disabling them.
+                busyButton.disabled = true;
+            };
+
+            document.addEventListener('submit', function (event) {
+                var submittedForm = event.target;
+                if (!submittedForm || !submittedForm.querySelector) {
+                    return;
+                }
+                // The button that submitted, when it asks for a busy state.
+                // That finds one OUTSIDE its form through form="..." - Create
+                // account and Save Details both sit in a dialog footer - which
+                // a search inside the form never could. Then any in the form.
+                var busyButton = (event.submitter && event.submitter.hasAttribute('data-busy'))
+                    ? event.submitter : submittedForm.querySelector('[data-busy]');
+                if (!busyButton) {
+                    return;
+                }
+                // Already busy: a second click before the page answered
+                // would be a second account, or a second password.
+                if (busyButton.getAttribute('data-busy-on') === '1') {
+                    event.preventDefault();
+                    return;
+                }
+                // Marked only after every other submit listener has run, and
+                // only if none refused: Add Account's own address check stops
+                // a bad submit, and must not leave the button spinning. That
+                // is also what disables it after the submission is under way -
+                // disabling a submitter inside its own submit event cancels
+                // the submit in some browsers.
+                window.setTimeout(function () {
+                    if (!event.defaultPrevented) {
+                        window.markBusy(busyButton);
+                    }
+                }, 0);
+            }, true);
+
+            function closeDeleteConfirm() {
+                overlay.classList.remove('modal-open');
+                if (closeTimer !== null) {
+                    window.clearTimeout(closeTimer);
+                }
+                closeTimer = window.setTimeout(function () {
+                    closeTimer = null;
+                    if (!overlay.classList.contains('modal-open')) {
+                        overlay.classList.add('hidden');
+                    }
+                }, 140);
+            }
+
+            function cancel() {
+                // Drop the pending form, or the next confirm would inherit it.
+                pendingForm = null;
+                pendingButton = null;
+                closeDeleteConfirm();
+            }
+
+            cancelBtn.addEventListener('click', cancel);
+            overlay.addEventListener('click', function (event) {
+                if (event.target === overlay) {
+                    cancel();
+                }
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && overlay.classList.contains('modal-open')) {
+                    cancel();
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

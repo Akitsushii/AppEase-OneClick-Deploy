@@ -1,0 +1,651 @@
+{% extends 'base.html' %}
+
+{% block title %}Lab Computers - AppEase{% endblock %}
+{% block page_title %}Lab Computers{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {% if computer_error %}
+        <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ computer_error | tojson }}, 'error'); });</script>
+    {% endif %}
+    {% if computer_success %}
+        <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ computer_success | tojson }}, 'success'); });</script>
+    {% endif %}
+
+    {#- Row menu is EDIT only: a computer row appears when an agent first
+        checks in, so it is never created or deleted here. -#}
+    <section class="card" data-dt-root data-dt-pagesize="25" data-dt-print
+             data-dt-searchlabel="Search computers..." data-dt-filename="lab-computers"
+             data-dt-xlsx-url="{{ url_for('export_xlsx') }}"
+             data-dt-noun="computer" data-dt-idfield="computer_ids"
+             data-print-section data-print-title="AppEase - Lab Computers">
+        <header>
+            <h3 class="card-title">Lab Computers</h3>
+            <p class="card-description">{{ computers | length }} registered.</p>
+        </header>
+        {% if computers %}
+            <section>
+                <div class="dt-toolbar" data-dt-toolbar></div>
+
+                <div class="dt-table-wrap">
+                    <table class="dt-table" data-dt-table data-table>
+                        <thead>
+                            <tr>
+                                <th class="dt-col-select" data-dt-select data-print-skip>
+                                    <input type="checkbox" class="input" aria-label="Select all rows on this page" />
+                                </th>
+                                <th data-dt-sort data-dt-label="Hostname">Hostname</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Location">Location</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Device Type">Device Type</th>
+                                {#- Condition, NOT "Status": here
+                                    Status means online/offline. -#}
+                                <th data-dt-sort data-dt-facet data-dt-label="Model">Model</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Condition">Condition</th>
+                                <th data-dt-sort data-dt-label="IP Address">IP Address</th>
+                                <th data-dt-sort data-dt-daterange data-dt-label="Last Seen">Last Seen</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Status">Status</th>
+                                <th class="dt-col-actions" data-dt-actions data-dt-label="Action" data-print-skip>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for computer in computers %}
+                                <tr data-dt-id="{{ computer['id'] }}" data-dt-edit
+                                    data-dt-edit-hostname="{{ computer['hostname'] }}"
+                                    data-dt-edit-location="{{ computer['location'] or '' }}"
+                                    data-dt-edit-device="{{ computer['device_type'] or '' }}"
+                                    {#- Details fill from these, not a
+                                        fetch. Agent-owned facts have no
+                                        data-dt-edit-* twin, so the drawer
+                                        can never post them back. -#}
+                                    data-dt-edit-status="{{ computer['asset_status'] or '' }}"
+                                    data-dt-edit-purchase="{{ computer['purchase_date'] or '' }}"
+                                    data-dt-edit-vendor="{{ computer['vendor'] or '' }}"
+                                    data-dt-edit-warranty="{{ computer['warranty_until'] or '' }}"
+                                    data-asset-condition="{{ computer['asset_status_label'] }}"
+                                    data-asset-manufacturer="{{ computer['manufacturer'] or '' }}"
+                                    data-asset-model="{{ computer['model'] or '' }}"
+                                    data-asset-serial="{{ computer['serial_number'] or '' }}"
+                                    data-asset-cpu="{{ computer['cpu'] or '' }}"
+                                    data-asset-ram="{{ computer['ram_label'] or '' }}"
+                                    data-asset-storage="{{ computer['storage_label'] or '' }}"
+                                    data-asset-os="{{ computer['os_name'] or '' }}"
+                                    data-asset-uninstall="{{ computer['uninstall_label'] }}"
+                                    data-asset-reported="{{ computer['hardware_reported_at'] | manila if computer['hardware_reported_at'] else '' }}"
+                                    data-asset-location="{{ computer['location'] or '' }}"
+                                    data-asset-device="{{ computer['device_type'] or '' }}"
+                                    data-asset-ip="{{ computer['ip_address'] or '' }}"
+                                    data-dt-link-url="{{ url_for('computer_qr_labels', ids=computer['id'], print=1) }}"
+                                    data-dt-link-label="Print QR label"
+                                    data-dt-link-icon="printer"
+                                    data-dt-link-target="_blank">
+                                    <td class="dt-col-select" data-print-skip>
+                                        <input type="checkbox" class="input" data-dt-check
+                                               value="{{ computer['id'] }}" aria-label="Select {{ computer['hostname'] }}" />
+                                    </td>
+                                    {#- The bare hostname, so the dot
+                                        stays out of the sort key. -#}
+                                    <td class="font-mono text-xs" data-sort="{{ computer['hostname'] }}">
+                                        <span class="flex items-center gap-2">
+                                            <span class="h-2 w-2 shrink-0 rounded-full {{ 'bg-online' if computer['status'] == 'online' else 'bg-faint' }}"></span>
+                                            {{ computer["hostname"] }}
+                                        </span>
+                                    </td>
+                                    <td>{% if computer["location"] %}{{ computer["location"] }}{% else %}<span class="text-muted">Unassigned</span>{% endif %}</td>
+                                    <td>{% if computer["device_type"] %}{{ computer["device_type"] }}{% else %}<span class="text-muted">Not set</span>{% endif %}</td>
+                                    <td>{% if computer["model"] %}{{ computer["model"] }}{% else %}<span class="text-muted">Not recorded</span>{% endif %}</td>
+                                    {#- NULL reads "In use", as in the
+                                        deploy picker. -#}
+                                    <td>
+                                        {% if computer["asset_status_label"] == "Retired" %}
+                                            <span class="dt-pill" data-tone="bad">Retired</span>
+                                        {% elif computer["asset_status_label"] == "In repair" %}
+                                            <span class="dt-pill" data-tone="warn">In repair</span>
+                                        {% else %}
+                                            <span class="dt-pill" data-tone="neutral">In use</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="font-mono text-xs">{{ computer["ip_address"] or "-" }}</td>
+                                    {#- The RAW UTC value: the manila
+                                        format does not sort as text, and
+                                        the date filter reads it too. -#}
+                                    <td class="font-mono text-xs" data-sort="{{ computer['last_seen'] or '' }}">{{ computer["last_seen"] | manila }}</td>
+                                    <td>
+                                        {% if computer['status'] == 'online' %}
+                                            <span class="dt-pill" data-tone="good">Online</span>
+                                        {% else %}
+                                            <span class="dt-pill" data-tone="bad">Offline</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="dt-col-actions" data-print-skip>
+                                        <button type="button" class="dt-row-menu" data-dt-rowmenu
+                                                data-dt-details
+                                                aria-haspopup="menu" aria-expanded="false"
+                                                aria-label="Actions for {{ computer['hostname'] }}">
+                                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <p class="dt-empty hidden" data-dt-empty>No computers match the current filters.</p>
+                </div>
+
+                <div class="dt-footer" data-dt-footer></div>
+            </section>
+
+            {#- Read-only actions (rows are never changed in bulk), both
+                scoped the same way: the ticked rows, else everything the
+                filters leave. -#}
+            <div class="dt-actionbar hidden" data-dt-actionbar role="region" aria-label="Bulk actions">
+                <span class="dt-actionbar-count">
+                    <span data-dt-count>0 selected</span>
+                    <button type="button" class="dt-actionbar-clear" data-dt-clear aria-label="Clear selection">&times;</button>
+                </span>
+                <span class="dt-actionbar-sep" aria-hidden="true"></span>
+                <button type="button" class="dt-btn" data-dt-export>Export</button>
+                <button type="button" class="dt-btn"
+                        data-dt-scope-url="{{ url_for('computer_qr_labels') }}">Print labels</button>
+            </div>
+        {% else %}
+            <section>
+                <p class="text-sm text-muted">No computers registered yet. A computer appears here the first time its agent checks in.</p>
+            </section>
+        {% endif %}
+    </section>
+
+    {#- Edit drawer: only what a technician owns; agent-reported fields
+        would put the database at odds with the machine. Choosing New reveals
+        a text box, and the script posts one value under `location`. -#}
+    <dialog id="comp-edit-drawer" class="drawer" data-side="right"
+            aria-labelledby="comp-edit-title" aria-describedby="comp-edit-description">
+        <article>
+            <header>
+                <h2 id="comp-edit-title">Edit <span id="comp-edit-hostname"></span></h2>
+                <p id="comp-edit-description">Location and device type.</p>
+            </header>
+            <section class="px-4">
+                <form method="POST" id="comp-edit-form" class="sw-edit-fields">
+                    <div role="group" class="field">
+                        <label for="comp-edit-location">Location</label>
+                        <select class="input" id="comp-edit-location">
+                            <option value="">Unassigned</option>
+                            {% for location in computer_locations %}
+                                <option value="{{ location }}">{{ location }}</option>
+                            {% endfor %}
+                            <option value="__new__">+ New location...</option>
+                        </select>
+                        <input class="input hidden" type="text" id="comp-edit-location-new"
+                               maxlength="20" placeholder="Lab 3" autocomplete="off" aria-label="New location" />
+                        <p class="text-xs text-muted">Letters, numbers, spaces and hyphens. Up to 20 characters.</p>
+                        {#- The posted value, from whichever
+                            control is in play, so nothing relies
+                            on a disabled input being skipped. -#}
+                        <input type="hidden" name="location" id="comp-edit-location-value" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="comp-edit-device">Device type</label>
+                        <select class="input" id="comp-edit-device" name="device_type">
+                            <option value="">Not set</option>
+                            {% for device_type in allowed_device_types %}
+                                <option value="{{ device_type }}">{{ device_type }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    {#- Only the technician's four fields. type="date":
+                        the server wants YYYY-MM-DD, the one thing the
+                        native picker produces. -#}
+                    <p class="mt-4 border-t border-line pt-4 text-sm font-medium text-ink">Asset record</p>
+                    <div role="group" class="field">
+                        <label for="comp-edit-asset-status">Condition</label>
+                        <select class="input" id="comp-edit-asset-status" name="asset_status">
+                            {% for status in allowed_asset_statuses %}
+                                <option value="{{ status }}">{{ status }}</option>
+                            {% endfor %}
+                        </select>
+                        <p class="text-xs text-muted">Retired computers are hidden from Deploy.</p>
+                    </div>
+                    <div role="group" class="field">
+                        <label for="comp-edit-purchase">Purchase date</label>
+                        <input class="input" type="date" id="comp-edit-purchase" name="purchase_date"
+                               min="1990-01-01" max="2100-12-31" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="comp-edit-vendor">Vendor</label>
+                        <input class="input" type="text" id="comp-edit-vendor" name="vendor"
+                               maxlength="40" placeholder="Not recorded" autocomplete="off" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="comp-edit-warranty">Warranty until</label>
+                        <input class="input" type="date" id="comp-edit-warranty" name="warranty_until"
+                               min="1990-01-01" max="2100-12-31" />
+                    </div>
+                </form>
+            </section>
+            <footer>
+                <button type="button" class="btn" data-variant="outline" data-comp-drawer-close>Cancel</button>
+                <button type="submit" form="comp-edit-form" class="btn">Save</button>
+            </footer>
+        </article>
+    </dialog>
+
+    {#- Details: a DRAWER like this page's edit drawer, so one table does
+        not show two panel shapes. Split in two: what the machine reports,
+        then what a person recorded, so a reader knows which to trust. Empty
+        values show "Not recorded". -#}
+    <dialog id="comp-details-drawer" class="drawer" data-side="right"
+            aria-labelledby="comp-details-title" aria-describedby="comp-details-description">
+        <article>
+            <header>
+                <h2 id="comp-details-title"><span id="comp-details-hostname"></span></h2>
+                <p id="comp-details-description">Hardware and asset record.</p>
+            </header>
+            <section class="px-4">
+                <dl class="comp-details-list text-sm">
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Location</dt>
+                        <dd id="comp-details-location" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Device type</dt>
+                        <dd id="comp-details-device" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">IP address</dt>
+                        <dd id="comp-details-ip" class="text-right font-mono text-xs text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Condition</dt>
+                        <dd id="comp-details-condition" class="text-right text-ink"></dd>
+                    </div>
+                </dl>
+
+                <p class="mt-4 border-t border-line pt-4 text-sm font-medium text-ink">Hardware</p>
+                <p class="text-xs text-muted">Reported by the agent on this computer.</p>
+                <dl class="comp-details-list mt-2 text-sm">
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Manufacturer</dt>
+                        <dd id="comp-details-manufacturer" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Model</dt>
+                        <dd id="comp-details-model" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Serial number</dt>
+                        <dd id="comp-details-serial" class="text-right font-mono text-xs text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Processor</dt>
+                        <dd id="comp-details-cpu" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Memory</dt>
+                        <dd id="comp-details-ram" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Storage</dt>
+                        <dd id="comp-details-storage" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Operating system</dt>
+                        <dd id="comp-details-os" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Uninstall support</dt>
+                        <dd id="comp-details-uninstall" class="text-right text-ink"></dd>
+                    </div>
+                </dl>
+                <p id="comp-details-reported" class="mt-2 text-xs text-muted"></p>
+
+                {#- What AppEase installed, as the agent recorded it: after
+                    Hardware, since both are machine-reported. Every string
+                    is decided on the server. -#}
+                <p class="mt-4 border-t border-line pt-4 text-sm font-medium text-ink">Installed by AppEase</p>
+                <p class="text-xs text-muted">Recorded by the agent when AppEase installed each one.</p>
+                <p class="text-xs text-muted">Only software installed after this computer's agent started keeping records is listed.</p>
+                <ul id="comp-details-installed" class="mt-2 space-y-2 text-sm"></ul>
+                <p id="comp-details-installed-empty" class="mt-2 text-xs text-muted hidden">Nothing installed by AppEase yet.</p>
+                <details id="comp-details-history" class="mt-2 hidden">
+                    <summary class="disclosure-summary cursor-pointer select-none text-xs text-muted">Show history (<span id="comp-details-history-count">0</span>)</summary>
+                    <ul id="comp-details-history-list" class="mt-2 space-y-2 text-sm"></ul>
+                </details>
+
+                <p class="mt-4 border-t border-line pt-4 text-sm font-medium text-ink">Asset record</p>
+                <p class="text-xs text-muted">Entered by a technician.</p>
+                <dl class="comp-details-list mt-2 text-sm">
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Purchase date</dt>
+                        <dd id="comp-details-purchase" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Vendor</dt>
+                        <dd id="comp-details-vendor" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Warranty until</dt>
+                        <dd id="comp-details-warranty" class="text-right text-ink"></dd>
+                    </div>
+                </dl>
+
+                {#- Equipment in this computer's ROOM, not on this desk:
+                    per-desk records are only worth showing if kept
+                    current. Read-only; edit it on the Equipment page. -#}
+                <p class="mt-4 border-t border-line pt-4 text-sm font-medium text-ink">Equipment in this room</p>
+                <ul id="comp-details-equipment" class="mt-2 space-y-1 text-sm"></ul>
+                <p id="comp-details-equipment-empty" class="mt-2 text-xs text-muted hidden">Nothing recorded for this room yet.</p>
+            </section>
+            <footer>
+                <button type="button" class="btn" data-variant="outline" data-comp-details-close>Close</button>
+            </footer>
+        </article>
+    </dialog>
+</div>
+
+{#- A JSON block, not data-* attributes: a model or vendor name can hold
+    a quote that would break out of an attribute, while tojson escapes for
+    this context and cannot terminate the tag. -#}
+<script type="application/json" id="comp-equipment-data">{{ equipment_by_location | tojson }}</script>
+{#- Same reasoning: tojson keeps quotes or a closing script tag in a
+    name from breaking out of the block. -#}
+<script type="application/json" id="comp-installed-data">{{ installations_by_computer | tojson }}</script>
+<script>
+    /* Edit drawer: pick a room or type a new one; the value goes in one
+     * hidden field, so nothing relies on a disabled input being skipped. */
+    (function () {
+        var drawer = document.getElementById('comp-edit-drawer');
+        var form = document.getElementById('comp-edit-form');
+        if (!drawer || !form) { return; }
+
+        var hostname = document.getElementById('comp-edit-hostname');
+        var picker = document.getElementById('comp-edit-location');
+        var custom = document.getElementById('comp-edit-location-new');
+        var hidden = document.getElementById('comp-edit-location-value');
+        var device = document.getElementById('comp-edit-device');
+        var assetStatus = document.getElementById('comp-edit-asset-status');
+        var purchase = document.getElementById('comp-edit-purchase');
+        var vendor = document.getElementById('comp-edit-vendor');
+        var warranty = document.getElementById('comp-edit-warranty');
+        var EDIT_URL = "{{ url_for('update_computer_fields', computer_id=0) }}";
+
+        /* Synced at every change, not only on submit: form.submit() from
+         * script fires no submit event, so the location would post empty.
+         * Also synced on submit, for a value typed in the same tick. */
+        function syncValue() {
+            hidden.value = picker.value === '__new__' ? custom.value.trim() : picker.value;
+        }
+
+        function syncCustom(focusIt) {
+            var isNew = picker.value === '__new__';
+            custom.classList.toggle('hidden', !isNew);
+            if (isNew) {
+                if (focusIt !== false) { custom.focus(); }
+            } else {
+                custom.value = '';
+            }
+            syncValue();
+        }
+        picker.addEventListener('change', function () { syncCustom(true); });
+        custom.addEventListener('input', syncValue);
+
+        function closeDrawer() {
+            if (!drawer.open) { return; }
+            drawer.setAttribute('data-closing', '');
+            // 500ms matches the drawer transition in basecoat.css.
+            window.setTimeout(function () {
+                drawer.removeAttribute('data-closing');
+                drawer.close();
+            }, 500);
+        }
+
+        document.addEventListener('dt:edit', function (event) {
+            var row = event.detail && event.detail.row;
+            if (!row) { return; }
+            // The /0/ SEGMENT is the placeholder, not a trailing zero.
+            form.action = EDIT_URL.replace('/0/', '/' + encodeURIComponent(event.detail.id) + '/');
+            hostname.textContent = row.getAttribute('data-dt-edit-hostname') || '';
+
+            var current = row.getAttribute('data-dt-edit-location') || '';
+            // A room the picker does not list goes into the New box, rather
+            // than selecting Unassigned and wiping it on save.
+            var known = Array.prototype.some.call(picker.options, function (option) {
+                return option.value === current;
+            });
+            if (current && !known) {
+                picker.value = '__new__';
+                custom.value = current;
+            } else {
+                picker.value = current;
+                custom.value = '';
+            }
+            syncCustom(false);
+
+            device.value = row.getAttribute('data-dt-edit-device') || '';
+
+            /* Empty means In use, as on the server. The raw attribute, not
+             * the pill, so the stored value is posted, not the label. */
+            assetStatus.value = row.getAttribute('data-dt-edit-status') || 'In use';
+            purchase.value = row.getAttribute('data-dt-edit-purchase') || '';
+            vendor.value = row.getAttribute('data-dt-edit-vendor') || '';
+            warranty.value = row.getAttribute('data-dt-edit-warranty') || '';
+
+            drawer.showModal();
+            picker.focus();
+        });
+
+        form.addEventListener('submit', syncValue);
+
+        drawer.addEventListener('click', function (event) {
+            if (event.target.closest('[data-comp-drawer-close]')) { closeDrawer(); return; }
+            if (event.target === drawer) { closeDrawer(); }
+        });
+        drawer.addEventListener('cancel', function (event) {
+            event.preventDefault();
+            closeDrawer();
+        });
+    })();
+
+    /* Details drawer: its own IIFE, since the edit block returns early
+     * when its form is missing and would take this with it. */
+    (function () {
+        var panel = document.getElementById('comp-details-drawer');
+        if (!panel) { return; }
+
+        var hostname = document.getElementById('comp-details-hostname');
+        var reported = document.getElementById('comp-details-reported');
+        var equipmentList = document.getElementById('comp-details-equipment');
+        var equipmentEmpty = document.getElementById('comp-details-equipment-empty');
+
+        /* Parsed once, not per open. Fails soft to an empty map: a details
+         * panel that cannot show equipment is a smaller problem than one
+         * that will not open at all. */
+        var EQUIPMENT = {};
+        try {
+            var raw = document.getElementById('comp-equipment-data');
+            if (raw) { EQUIPMENT = JSON.parse(raw.textContent || '{}') || {}; }
+        } catch (err) {
+            EQUIPMENT = {};
+        }
+
+        /* Parsed once, failing soft like EQUIPMENT. Strings are decided on
+         * the server and set with textContent: a name or version came from
+         * the agent or a form, and is not markup. */
+        var INSTALLED = {};
+        try {
+            var installedRaw = document.getElementById('comp-installed-data');
+            if (installedRaw) { INSTALLED = JSON.parse(installedRaw.textContent || '{}') || {}; }
+        } catch (err) {
+            INSTALLED = {};
+        }
+        var installedList = document.getElementById('comp-details-installed');
+        var installedEmpty = document.getElementById('comp-details-installed-empty');
+        var historyBox = document.getElementById('comp-details-history');
+        var historyCount = document.getElementById('comp-details-history-count');
+        var historyList = document.getElementById('comp-details-history-list');
+
+        function clearList(list) {
+            while (list.firstChild) { list.removeChild(list.firstChild); }
+        }
+
+        function textLine(text) {
+            var line = document.createElement('p');
+            line.className = 'text-xs text-muted';
+            line.textContent = text;
+            return line;
+        }
+
+        function renderInstalled(computerId) {
+            var entry = INSTALLED[computerId] || {};
+            var live = entry.live || [];
+            var past = entry.history || [];
+            clearList(installedList);
+            clearList(historyList);
+            installedEmpty.classList.toggle('hidden', live.length > 0);
+
+            live.forEach(function (item) {
+                var row = document.createElement('li');
+                var top = document.createElement('div');
+                top.className = 'flex items-baseline justify-between gap-4';
+                var name = document.createElement('span');
+                name.className = 'min-w-0 text-ink';
+                name.textContent = item.name || '';
+                if (item.library_note) {
+                    var note = document.createElement('span');
+                    note.className = 'text-xs text-muted';
+                    note.textContent = ' \u00b7 ' + item.library_note;
+                    name.appendChild(note);
+                }
+                var pill = document.createElement('span');
+                pill.className = 'dt-pill shrink-0';
+                pill.setAttribute('data-tone', item.tone || 'warn');
+                pill.textContent = item.pill || '';
+                top.appendChild(name);
+                top.appendChild(pill);
+                row.appendChild(top);
+                if (item.meta) { row.appendChild(textLine(item.meta)); }
+                if (item.reason) { row.appendChild(textLine(item.reason)); }
+                installedList.appendChild(row);
+            });
+
+            past.forEach(function (item) {
+                var row = document.createElement('li');
+                var first = item.name || '';
+                if (item.library_note) { first += ' \u00b7 ' + item.library_note; }
+                if (item.meta) { first += ' \u00b7 ' + item.meta; }
+                row.appendChild(textLine(first));
+                row.appendChild(textLine(item.history || ''));
+                historyList.appendChild(row);
+            });
+            historyCount.textContent = String(past.length);
+            /* Closed on every open, and gone entirely when there is none. */
+            historyBox.open = false;
+            historyBox.classList.toggle('hidden', past.length === 0);
+        }
+
+        function renderEquipment(location) {
+            /* Keyed by ROOM NAME: a computer with no room shows nothing;
+             * "" must not fall through to some default group. */
+            var items = (location && EQUIPMENT[location]) || [];
+            /* Every value set with textContent: a model or vendor name came
+             * from a form and is not markup. */
+            while (equipmentList.firstChild) {
+                equipmentList.removeChild(equipmentList.firstChild);
+            }
+            equipmentEmpty.classList.toggle('hidden', items.length > 0);
+
+            items.forEach(function (item) {
+                var row = document.createElement('li');
+                row.className = 'flex items-baseline justify-between gap-4';
+
+                var left = document.createElement('span');
+                var name = item.category || 'Item';
+                if (item.quantity && item.quantity > 1) { name += ' x' + item.quantity; }
+                left.textContent = name;
+
+                var right = document.createElement('span');
+                right.className = 'text-right text-xs text-muted';
+                var detail = item.label || '';
+                if (item.condition && item.condition !== 'In use') {
+                    detail = detail ? detail + ' - ' + item.condition : item.condition;
+                }
+                right.textContent = detail;
+
+                row.appendChild(left);
+                row.appendChild(right);
+                equipmentList.appendChild(row);
+            });
+        }
+
+        /* One loop for every field, so a new one cannot forget the
+         * empty-value fallback. */
+        var FIELDS = {
+            'data-asset-location': 'comp-details-location',
+            'data-asset-device': 'comp-details-device',
+            'data-asset-ip': 'comp-details-ip',
+            'data-asset-condition': 'comp-details-condition',
+            'data-asset-manufacturer': 'comp-details-manufacturer',
+            'data-asset-model': 'comp-details-model',
+            'data-asset-serial': 'comp-details-serial',
+            'data-asset-cpu': 'comp-details-cpu',
+            'data-asset-ram': 'comp-details-ram',
+            'data-asset-storage': 'comp-details-storage',
+            'data-asset-os': 'comp-details-os',
+            'data-asset-uninstall': 'comp-details-uninstall',
+            'data-dt-edit-purchase': 'comp-details-purchase',
+            'data-dt-edit-vendor': 'comp-details-vendor',
+            'data-dt-edit-warranty': 'comp-details-warranty'
+        };
+
+        function closePanel() {
+            if (!panel.open) { return; }
+            panel.setAttribute('data-closing', '');
+            // 500ms matches the drawer transition in basecoat.css.
+            window.setTimeout(function () {
+                panel.removeAttribute('data-closing');
+                panel.close();
+            }, 500);
+        }
+
+        document.addEventListener('dt:details', function (event) {
+            var row = event.detail && event.detail.row;
+            if (!row) { return; }
+
+            hostname.textContent = row.getAttribute('data-dt-edit-hostname') || '';
+
+            Object.keys(FIELDS).forEach(function (attribute) {
+                var target = document.getElementById(FIELDS[attribute]);
+                if (!target) { return; }
+                var value = row.getAttribute(attribute) || '';
+                /* textContent, never innerHTML: a model string or a vendor
+                 * name is free text that reached the database from a form or
+                 * from WMI, and neither is markup. */
+                target.textContent = value || 'Not recorded';
+                target.classList.toggle('text-muted', !value);
+            });
+
+            /* The report date changes shape, not value: a machine with no
+             * specs says so once, not seven times. */
+            renderEquipment(row.getAttribute('data-asset-location') || '');
+            renderInstalled(String(event.detail.id || ''));
+
+            var when = row.getAttribute('data-asset-reported') || '';
+            reported.textContent = when
+                ? 'Last reported ' + when
+                : 'No agent has reported hardware for this computer yet.';
+
+            panel.showModal();
+        });
+
+        panel.addEventListener('click', function (event) {
+            if (event.target.closest('[data-comp-details-close]')) { closePanel(); return; }
+            if (event.target === panel) { closePanel(); }
+        });
+        panel.addEventListener('cancel', function (event) {
+            event.preventDefault();
+            closePanel();
+        });
+    })();
+</script>
+<script defer src="{{ url_for('static', filename='js/data-table.js') }}"></script>
+{% endblock %}

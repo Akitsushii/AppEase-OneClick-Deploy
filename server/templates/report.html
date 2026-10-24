@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {#- base.html's pre-paint pair, repeated as this page does not extend
+        it. Both sit ABOVE the stylesheets, which have not loaded yet in the
+        gap they cover: without the meta a dark-mode phone paints its canvas
+        dark, and without the rule the root has no colour of its own. -#}
+    <meta name="color-scheme" content="light">
+    <style>html { background-color: #f1f2f6; }</style>
+    {#- Belt and braces alongside robots.txt and the X-Robots-Tag header. This
+        page is meant to be reached by scanning a sticker in a lab, never by
+        searching for it. -#}
+    <meta name="robots" content="noindex, nofollow">
+    <title>Report a Problem - AppEase</title>
+    <link rel="preload" href="{{ url_for('static', filename='fonts/Outfit-Variable.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/appease-appiconv2.svg') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/appease-appicon-32v2.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/appease-appicon-180v2.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <style>
+        @keyframes rep-spin { to { transform: rotate(360deg); } }
+        .rep-spinner {
+            width: 34px;
+            height: 34px;
+            border: 3px solid rgba(255, 255, 255, 0.35);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+            animation: rep-spin 0.8s linear infinite;
+        }
+        /* Compound selector, not a bare `display`. #report-sending sits
+           in a stylesheet that loads after Tailwind, so a plain display
+           rule here would beat the `hidden` class that toggles it and
+           the overlay would never go away. */
+        #report-sending.hidden { display: none; }
+        /* "Did you mean...?" under the email. No display rule on purpose:
+           this sheet loads after Tailwind, so one would beat the `hidden`
+           class that toggles the line. */
+        .rep-suggest { margin: 0; font-size: 12px; line-height: 1.5; color: #374151; }
+        .rep-suggest strong { font-weight: 600; word-break: break-all; }
+        .rep-suggest-btn {
+            margin-left: 6px;
+            padding: 0;
+            border: 0;
+            background: none;
+            font: inherit;
+            font-weight: 500;
+            color: var(--color-primary);
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        /* The Other program box sits between Program and Year & Section in
+           the markup. Two columns: its own row under both. One column (the
+           480px .rep-row breakpoint) leaves it directly under Program.
+           Placement only, no display rule, so `hidden` still wins. */
+        .rep-program-row > #program-other-field { grid-row: 2; grid-column: 1 / -1; margin-top: 2px; }
+        @media (max-width: 480px) {
+            .rep-program-row > #program-other-field { grid-row: auto; grid-column: auto; margin-top: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .rep-spinner { animation-duration: 2.4s; }
+        }
+        .rep-code { margin-top: 4px; }
+        .rep-code > summary {
+            cursor: pointer;
+            font-size: 13px;
+            color: #4b5563;
+            padding: 6px 0;
+        }
+        .rep-code > label {
+            display: block;
+            margin-top: 8px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .rep-code > input {
+            width: 100%;
+            max-width: 220px;
+            margin-top: 4px;
+            padding: 8px 10px;
+            border: 1px solid #e6e8ee;
+            border-radius: 8px;
+            font: inherit;
+            /* Uppercase on screen only. The VALUE is left alone - the server
+               normalises case itself, and forcing it here would fight the
+               phone keyboard on every keystroke. */
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+        }
+        .rep-code > p {
+            margin-top: 4px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-canvas font-sans text-ink">
+    {#- Basecoat's .field/.input/.btn work here without base.html: they
+        compile into tailwind.css, which this page links directly. The ids
+        and hooks are what the validation script below binds to. -#}
+    <main class="mx-auto max-w-lg px-4 py-10">
+        <div class="mb-6 text-center">
+            <p class="inline-flex items-center gap-2 text-sm font-medium text-ink">
+                <svg class="h-4 shrink-0" viewBox="0 16 60 20" fill="none" aria-hidden="true">
+                    <rect x="2" y="21" width="9" height="9" rx="2.5" fill="#cfd2d8"></rect>
+                    <rect x="16" y="21" width="9" height="9" rx="2.5" fill="#8b8f99"></rect>
+                    <rect x="30" y="21" width="9" height="9" rx="2.5" fill="#4a4f5c"></rect>
+                    <circle cx="50" cy="25.5" r="6.5" fill="none" stroke="var(--color-primary)" stroke-width="3.2"></circle>
+                </svg>
+                AppEase
+            </p>
+            <h1 class="mt-2 text-3xl font-semibold tracking-tight">Report a Problem</h1>
+            <p class="mt-2 text-sm text-muted">Tell us what is wrong and a technician will take a look.</p>
+        </div>
+
+        <section class="rounded-2xl border border-line bg-white p-6 shadow-card">
+            {#- Demo banner. NOT dismissible: someone who closed it could
+                answer "I successfully reported a problem" in the survey
+                about a report that never happened. Inline styles, so it
+                does not depend on a CSS build. -#}
+            {% if demo_mode %}
+                <div style="margin-bottom:16px;border:1px solid #fcd34d;background:#fffbeb;
+                            border-radius:10px;padding:12px 14px;color:#78350f;
+                            font-size:13px;line-height:1.5;">
+                    <strong style="display:block;margin-bottom:2px;">Preview only</strong>
+                    This is a demonstration of the AppEase problem report form. You can fill it
+                    in and send it to see how it works - nothing you enter will be saved.
+                </div>
+            {% endif %}
+
+
+            {#- A server refusal arrives in the same span the page's own
+                checks write into, so typing clears it the same way. -#}
+            {% macro error_line(name) -%}
+                <span id="{{ name }}-error" class="text-xs text-danger{{ '' if error_field == name else ' hidden' }}">{{ error_text if error_field == name else '' }}</span>
+            {%- endmacro %}
+            {% macro invalid(name) %}{{ ' border-danger' if error_field == name else '' }}{% endmacro %}
+
+            {% if computers %}
+                <form method="post" action="{{ url_for('student_problem_report_form') }}" enctype="multipart/form-data" class="rep-fields">
+                    {#- Tells a scanned sticker from a typed URL. Both are
+                        accepted, just recorded differently. Empty unless
+                        the QR's signature was valid, and worthless without
+                        the hostname signed alongside it. -#}
+                    <input type="hidden" name="qr_token" value="{{ qr_token or '' }}">
+                    <input type="hidden" name="qr_hostname" value="{{ qr_hostname or '' }}">
+
+                    {#- When this form was served, signed by the server. The
+                        POST refuses anything filled in faster than a person
+                        could type it. -#}
+                    <input type="hidden" name="form_started" value="{{ form_started or '' }}">
+
+                    {#- Labels the report "Sticker code", not "QR sticker".
+                        The label only: both are equally trusted, and the
+                        gate has already run by the time this renders. -#}
+                    <input type="hidden" name="via_code" value="{{ '1' if arrived_by_code else '' }}">
+                    {#- Carried on the form as well as the query string: the
+                        POST goes to /report with no arguments, so without this
+                        the submit would look like an ordinary one and be
+                        refused by the gate instead of being discarded. -#}
+                    {% if demo_mode %}<input type="hidden" name="demo" value="1">{% endif %}
+
+                    {#- Honeypot. Positioned off-screen rather than
+                        display:none - some automated submitters skip hidden
+                        inputs but happily fill a visible one they cannot
+                        see. aria-hidden and tabindex=-1 keep it away from
+                        screen readers and the tab order, so no real person
+                        can reach it; autocomplete=off stops a browser
+                        helpfully filling it in on their behalf, which would
+                        silently swallow a genuine report.
+
+                        Named "website" because that is a field name a bot
+                        expects to find and wants to fill. -#}
+                    <div aria-hidden="true" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">
+                        <label for="website">Website</label>
+                        <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" value="">
+                    </div>
+                    <div role="group" class="field">
+                        <label for="reporter_role">Who is reporting this? <span class="rep-req">*</span></label>
+                        <select class="input{{ invalid('reporter_role') }}" id="reporter_role" name="reporter_role" required onchange="validateRole()">
+                            <option value="">Select who you are</option>
+                            <option value="student"{{ ' selected' if values.get('reporter_role') == 'student' else '' }}>Student</option>
+                            <option value="faculty"{{ ' selected' if values.get('reporter_role') == 'faculty' else '' }}>Faculty</option>
+                        </select>
+                        {{ error_line('reporter_role') }}
+                    </div>
+
+                    <div role="group" class="field">
+                        <label for="reporter_name">Full name <span class="rep-req">*</span></label>
+                        <input class="input{{ invalid('reporter_name') }}" type="text" id="reporter_name" name="reporter_name" required minlength="2" maxlength="60" placeholder="Juan Dela Cruz" value="{{ values.get('reporter_name', '') }}" oninput="validateReporterName()">
+                        {{ error_line('reporter_name') }}
+                    </div>
+
+                    {#- Required: the receipt goes here. Pre-filled for
+                        someone signed in to AppEase. -#}
+                    <div role="group" class="field">
+                        <label for="reporter_email">Email <span class="rep-req">*</span></label>
+                        <input class="input{{ invalid('reporter_email') }}" type="email" id="reporter_email" name="reporter_email" required maxlength="120"
+                               inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false"
+                               placeholder="juan.delacruz@gmail.com" value="{{ reporter_email_prefill or '' }}" oninput="validateReporterEmail()">
+                        <span class="text-xs text-muted">Used only to confirm and update you about this report.</span>
+                        {{ error_line('reporter_email') }}
+                        {#- Advice only: Keep mine dismisses it, and
+                            Send still works. -#}
+                        <p id="reporter_email-suggest" class="rep-suggest hidden" aria-live="polite">
+                            Did you mean <strong id="reporter_email-suggestion"></strong>?
+                            <button type="button" class="rep-suggest-btn" id="reporter_email-use">Use this</button>
+                            <button type="button" class="rep-suggest-btn" id="reporter_email-keep">Keep mine</button>
+                        </p>
+                    </div>
+
+                    {#- A hidden `required` input makes the browser refuse
+                        to submit while focusing nothing - a dead button -
+                        so the toggle moves `required` with visibility. -#}
+                    <div id="faculty-fields" class="hidden rep-group">
+                        <div role="group" class="field">
+                            <label for="reporter_department">Department <span class="rep-req">*</span></label>
+                            <input class="input{{ invalid('reporter_department') }}" type="text" id="reporter_department" name="reporter_department" maxlength="60" placeholder="College of Information and Communications Technology" value="{{ values.get('reporter_department', '') }}" oninput="validateDepartment()">
+                            {{ error_line('reporter_department') }}
+                        </div>
+                    </div>
+
+                    <div id="student-fields" class="hidden rep-group">
+                        <div role="group" class="field">
+                            <label for="reporter_student_number">Student number <span class="rep-req">*</span></label>
+                            <input class="input{{ invalid('reporter_student_number') }}" type="text" id="reporter_student_number" name="reporter_student_number" maxlength="20" placeholder="2023000000" value="{{ values.get('reporter_student_number', '') }}" oninput="validateStudentNumber()">
+                            {{ error_line('reporter_student_number') }}
+                        </div>
+                        {#- Side by side: short, related, and always
+                            filled together. -#}
+                        <div class="rep-row rep-program-row">
+                            <div role="group" class="field">
+                                <label for="reporter_program">Program <span class="rep-req">*</span></label>
+                                {#- REPORT_PROGRAMS, the list the
+                                    route checks against. -#}
+                                <select class="input{{ invalid('reporter_program') }}" id="reporter_program" name="reporter_program" onchange="validateProgram()">
+                                    <option value="">Select your program</option>
+                                    {% for code, title in report_programs %}
+                                    <option value="{{ code }}" title="{{ title }}"{{ ' selected' if values.get('reporter_program') == code else '' }}>{{ code }}</option>
+                                    {% endfor %}
+                                    <option value="{{ report_program_other }}"{{ ' selected' if values.get('reporter_program') == report_program_other else '' }}>Other...</option>
+                                </select>
+                                {{ error_line('reporter_program') }}
+                            </div>
+                            {#- Here ON PURPOSE: on a phone it sits directly
+                                under Program. .rep-group, not .field: it
+                                sets no display, so `hidden` really hides
+                                it. -#}
+                            <div id="program-other-field" class="hidden rep-group">
+                                <div role="group" class="field">
+                                    <label for="reporter_program_other">Your program <span class="rep-req">*</span></label>
+                                    <input class="input{{ invalid('reporter_program_other') }}" type="text" id="reporter_program_other" name="reporter_program_other" maxlength="60" placeholder="Type your program" value="{{ values.get('reporter_program_other', '') }}" oninput="validateProgramOther()">
+                                    {{ error_line('reporter_program_other') }}
+                                </div>
+                            </div>
+                            <div role="group" class="field">
+                                {#- maxlength 5 fits the widest
+                                    spacing allowed, "4 - C". -#}
+                                <label for="reporter_section">Year &amp; Section <span class="rep-req">*</span></label>
+                                <input class="input{{ invalid('reporter_section') }}" type="text" id="reporter_section" name="reporter_section" maxlength="5" placeholder="4C" value="{{ values.get('reporter_section', '') }}" oninput="validateSection()">
+                                {{ error_line('reporter_section') }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rep-row">
+                        <div role="group" class="field">
+                            <label for="computer_hostname">Computer <span class="rep-req">*</span></label>
+                            {#- After a refusal the reporter's choice
+                                stays chosen, and "(this computer)" stays
+                                on the one the sticker named. -#}
+                            {% set chosen_hostname = values.get('computer_hostname') if values else pre_selected_hostname %}
+                            <select class="input{{ invalid('computer_hostname') }}" id="computer_hostname" name="computer_hostname" required onchange="validateComputer()">
+                                <option value="">Select computer</option>
+                                {% for item in computers %}
+                                    <option value="{{ item['hostname'] }}"{{ ' selected' if item['hostname'] == chosen_hostname else '' }}>{{ item["hostname"] }} ({{ item["status"] }}){{ ' (this computer)' if item['hostname'] == pre_selected_hostname else '' }}</option>
+                                {% endfor %}
+                            </select>
+                            {{ error_line('computer_hostname') }}
+                        </div>
+                        <div role="group" class="field">
+                            <label for="problem_type">Problem type <span class="rep-req">*</span></label>
+                            <select class="input{{ invalid('problem_type') }}" id="problem_type" name="problem_type" required onchange="validateType()">
+                                <option value="">Select type</option>
+                                {% for value, label in [('keyboard', 'Keyboard'), ('mouse', 'Mouse'), ('monitor', 'Monitor'), ('network', 'Network'), ('software', 'Software'), ('other', 'Other')] %}
+                                <option value="{{ value }}"{{ ' selected' if values.get('problem_type') == value else '' }}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            {{ error_line('problem_type') }}
+                        </div>
+                    </div>
+
+                    <div role="group" class="field">
+                        <label for="description">Describe the problem <span class="rep-req">*</span></label>
+                        <textarea class="input rep-textarea{{ invalid('description') }}" id="description" name="description" placeholder="Example: The keyboard keys are stuck and not responding" minlength="10" maxlength="500" required oninput="validateDescription()">{{ values.get('description', '') }}</textarea>
+                        <span id="description-char-count" class="text-xs text-muted">0 / 500 characters</span>
+                        {{ error_line('description') }}
+                    </div>
+
+                    {#- The native file input is still THE input, moved
+                        off-screen with a clip, not display:none: a
+                        display:none input cannot be focused, which breaks
+                        keyboard access and validation messages. -#}
+                    <div role="group" class="field">
+                        <label for="report_photos">Photos <span class="text-muted">(optional)</span></label>
+                        <span id="report_photos-hint" class="text-xs text-muted">Up to 3 photos. JPG, PNG or WEBP, 5 MB each.</span>
+                        <input class="rep-file-input" type="file" id="report_photos" name="report_photos" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple onchange="validatePhotos()">
+                        <button type="button" class="btn" data-variant="outline" id="report_photos-trigger">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+                            Attach files
+                        </button>
+                        <ul class="rep-file-list" id="report_photos-list"></ul>
+                        {#- After a refusal over another field, asks for
+                            the photos again: no page can refill a file
+                            picker. -#}
+                        {% set photos_message = error_text if error_field == 'report_photos' else photos_note %}
+                        <span id="report_photos-error" class="text-xs text-danger{{ '' if photos_message else ' hidden' }}">{{ photos_message or '' }}</span>
+                    </div>
+
+                    <button type="submit" id="submit-report-btn" class="btn rep-submit" disabled>Submit report</button>
+                </form>
+            {% else %}
+                <p class="rounded-lg border border-line bg-subtle px-3 py-2 text-sm text-muted">No computers registered yet.</p>
+            {% endif %}
+        </section>
+
+        <p class="mt-1 text-center text-xs text-faint">For lab use only</p>
+    </main>
+
+    {#- Stays up until the next page arrives: the form does a real
+        navigation, so there is nothing to poll or time out. On cellular,
+        an unchanged screen reads as a hung form. -#}
+    <div id="report-sending" class="deploy-backdrop hidden fixed inset-0 z-50 flex items-center justify-center"
+         role="status" aria-live="polite">
+        <div class="flex flex-col items-center gap-3">
+            <div class="rep-spinner"></div>
+            <p class="text-sm font-medium text-white">Sending your report&hellip;</p>
+            <p class="text-xs text-white/80">Please keep this page open.</p>
+        </div>
+    </div>
+
+    {# A deliberate local copy of the shared confirm modal: this page does
+       not extend base.html. Same markup and 140ms close timer, and its ids
+       are in app.css so it fades identically. #}
+    <div id="report-confirm-overlay" class="deploy-backdrop hidden fixed inset-0 z-50 flex items-center justify-center">
+        <div id="report-confirm-panel" class="w-full max-w-md rounded-xl border border-line bg-white p-6 shadow-raised">
+            <h4 class="text-base font-semibold text-ink">Send this report?</h4>
+            <p class="mt-2 text-sm text-gray-600">You cannot edit or take back a report once it is sent, so check the computer name and your details first.</p>
+            <p class="mt-2 text-sm text-gray-600">Confirmation email to: <strong id="report-confirm-email" class="text-ink"></strong></p>
+            <div class="mt-5 flex justify-end gap-2">
+                <button type="button" id="report-confirm-cancel" class="rounded-md border border-field px-3 py-1.5 text-sm font-medium text-label hover:bg-subtle">Go back</button>
+                <button type="button" id="report-confirm-accept" class="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:opacity-90">Send report</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    /* Attach-files UI. The native input stays the real control.
+     *
+     * Removing one file needs a DataTransfer: a FileList is read-only, so
+     * the list is rebuilt and assigned back. Without DataTransfer the ×
+     * clears the whole selection, which is worse but never silently wrong.
+     */
+    (function () {
+        var input = document.getElementById('report_photos');
+        var trigger = document.getElementById('report_photos-trigger');
+        var list = document.getElementById('report_photos-list');
+        if (!input || !trigger || !list) { return; }
+
+        // The accumulated selection. input.files is authoritative after every
+        // merge; this mirror is what the NEXT pick gets merged onto.
+        var kept = Array.prototype.slice.call(input.files);
+
+        trigger.addEventListener('click', function () { input.click(); });
+
+        function sizeLabel(bytes) {
+            if (bytes >= 1048576) { return (bytes / 1048576).toFixed(1) + ' MB'; }
+            return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+        }
+
+        /* Files ADD UP across pickings: a file input replaces its whole
+         * FileList on every pick, which would silently drop the first photo.
+         * Duplicates (name+size+lastModified) are a slip, not a request for
+         * two copies. Without DataTransfer the native replace stays. */
+        var merging = false;
+
+        function sameFile(a, b) {
+            return a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
+        }
+
+        function mergePicked() {
+            if (typeof DataTransfer === 'undefined') { return; }
+            var merged = new DataTransfer();
+            var seen = [];
+            function push(file) {
+                for (var i = 0; i < seen.length; i++) {
+                    if (sameFile(seen[i], file)) { return; }
+                }
+                seen.push(file);
+                merged.items.add(file);
+            }
+            Array.prototype.forEach.call(kept, push);
+            Array.prototype.forEach.call(input.files, push);
+            merging = true;
+            input.files = merged.files;
+            merging = false;
+            kept = Array.prototype.slice.call(input.files);
+        }
+
+        function removeAt(index) {
+            if (typeof DataTransfer === 'undefined') {
+                input.value = '';
+                kept = [];
+            } else {
+                var keep = new DataTransfer();
+                Array.prototype.forEach.call(input.files, function (file, i) {
+                    if (i !== index) { keep.items.add(file); }
+                });
+                merging = true;
+                input.files = keep.files;
+                merging = false;
+                kept = Array.prototype.slice.call(input.files);
+            }
+            render();
+            // Re-run the page's own checks so the error text and the submit
+            // button agree with the new selection.
+            if (typeof validatePhotos === 'function') { validatePhotos(); }
+        }
+
+        function render() {
+            list.textContent = '';
+            Array.prototype.forEach.call(input.files, function (file, index) {
+                var item = document.createElement('li');
+                item.className = 'rep-file';
+
+                var name = document.createElement('span');
+                name.className = 'rep-file-name';
+                // textContent, never innerHTML: the filename comes from the
+                // person's own disk and is not markup.
+                name.textContent = file.name;
+
+                var size = document.createElement('span');
+                size.className = 'rep-file-size';
+                size.textContent = '(' + sizeLabel(file.size) + ')';
+
+                var remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'rep-file-remove';
+                remove.setAttribute('aria-label', 'Remove ' + file.name);
+                remove.textContent = '\u00d7';
+                remove.addEventListener('click', function () { removeAt(index); });
+
+                item.appendChild(name);
+                item.appendChild(size);
+                item.appendChild(remove);
+                list.appendChild(item);
+            });
+        }
+
+        /* ---- Downscaling ------------------------------------------------
+         *
+         * A phone photo is 3-8 MB against a 5 MB server cap, and cellular
+         * data costs per megabyte. 1600px on the longest edge lands a photo
+         * at 300-600 KB. Done here because the point is to avoid SENDING the
+         * bytes; a server-side resize would still receive them.
+         *
+         * Every failure path keeps the ORIGINAL file: a photo that quietly
+         * disappears is far worse than one that uploads large. */
+        var PHOTO_MAX_EDGE = 1600;
+        var PHOTO_QUALITY = 0.85;
+        // Below this, and already within the edge limit, a file is left
+        // completely alone - re-encoding a small photo only loses quality.
+        var PHOTO_SKIP_BYTES = 1200 * 1024;
+        /* A PNG is usually a screenshot of an error, and JPEG turns small
+         * text into mush, so a PNG keeps its format and is only shrunk when
+         * genuinely huge enough to hit the 5 MB cap. */
+        var PNG_MAX_EDGE = 2400;
+        var PNG_SKIP_BYTES = 4 * 1024 * 1024;
+
+        function canResize() {
+            if (typeof DataTransfer === 'undefined') { return false; }
+            if (typeof File !== 'function') { return false; }
+            if (typeof URL === 'undefined' || !URL.createObjectURL) { return false; }
+            var probe = document.createElement('canvas');
+            return !!(probe.getContext && probe.getContext('2d') && probe.toBlob);
+        }
+
+        function targetFor(file) {
+            var isPng = /\.png$/i.test(file.name) || file.type === 'image/png';
+            return {
+                png: isPng,
+                maxEdge: isPng ? PNG_MAX_EDGE : PHOTO_MAX_EDGE,
+                skipBytes: isPng ? PNG_SKIP_BYTES : PHOTO_SKIP_BYTES
+            };
+        }
+
+        /* Calls back with the shrunk File, or the original whenever
+         * shrinking is impossible or would not help. A callback, not a
+         * Promise: the rest of this page is ES5. */
+        function downscale(file, done) {
+            var spec = targetFor(file);
+            if (!canResize()) { done(file); return; }
+
+            var url = URL.createObjectURL(file);
+            var image = new Image();
+            var settled = false;
+
+            function finish(result) {
+                if (settled) { return; }
+                settled = true;
+                URL.revokeObjectURL(url);
+                done(result || file);
+            }
+
+            /* A decode that never resolves would leave the submit button
+             * disabled forever, which is the one outcome worse than a large
+             * upload. HEIC from an iPhone is the realistic case: the browser
+             * simply cannot decode it and may never fire either event. */
+            var timer = window.setTimeout(function () { finish(file); }, 15000);
+
+            image.onerror = function () {
+                window.clearTimeout(timer);
+                finish(file);
+            };
+
+            image.onload = function () {
+                window.clearTimeout(timer);
+                var width = image.naturalWidth || image.width;
+                var height = image.naturalHeight || image.height;
+                if (!width || !height) { finish(file); return; }
+
+                var longest = Math.max(width, height);
+                // Small enough already: leave it exactly as it is.
+                if (longest <= spec.maxEdge && file.size <= spec.skipBytes) {
+                    finish(file);
+                    return;
+                }
+
+                var scale = longest > spec.maxEdge ? (spec.maxEdge / longest) : 1;
+                var targetW = Math.max(1, Math.round(width * scale));
+                var targetH = Math.max(1, Math.round(height * scale));
+
+                var canvas = document.createElement('canvas');
+                canvas.width = targetW;
+                canvas.height = targetH;
+                var ctx = canvas.getContext('2d');
+                if (!ctx) { finish(file); return; }
+                /* A white floor: a transparent image drawn to a JPEG canvas
+                 * would otherwise composite onto black. */
+                if (!spec.png) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, targetW, targetH);
+                }
+                try {
+                    ctx.drawImage(image, 0, 0, targetW, targetH);
+                } catch (err) {
+                    finish(file);
+                    return;
+                }
+
+                var type = spec.png ? 'image/png' : 'image/jpeg';
+                canvas.toBlob(function (blob) {
+                    /* Re-encoding an optimised JPEG can come out bigger;
+                     * then keep the original. */
+                    if (!blob || blob.size >= file.size) { finish(file); return; }
+
+                    /* The name must match the contents: the server checks
+                     * extension and magic bytes SEPARATELY, never that they
+                     * agree, so a .png of JPEG data would pass both and sit
+                     * on disk under a lying name. */
+                    var name = spec.png ? file.name
+                        : file.name.replace(/\.[^.]+$/, '') + '.jpg';
+
+                    var shrunk;
+                    try {
+                        /* lastModified carried over: sameFile() dedupes
+                         * on it, and a new File would get "now", so the
+                         * same photo picked twice would attach twice. */
+                        shrunk = new File([blob], name, {
+                            type: type,
+                            lastModified: file.lastModified
+                        });
+                    } catch (err) {
+                        finish(file);
+                        return;
+                    }
+                    finish(shrunk);
+                }, type, spec.png ? undefined : PHOTO_QUALITY);
+            };
+
+            image.src = url;
+        }
+
+        /* ---- Busy state -------------------------------------------------
+         *
+         * Shown in two places because they answer different questions: the
+         * chips say which photos are being worked on, the button says why it
+         * will not respond yet. */
+        var submitBtn = document.getElementById('submit-report-btn');
+        var submitLabel = submitBtn ? submitBtn.textContent : '';
+        var pending = [];
+
+        function setBusy(active, files) {
+            window.photosBusy = !!active;
+            pending = active ? Array.prototype.slice.call(files || []) : [];
+            if (submitBtn) {
+                submitBtn.textContent = active ? 'Preparing photos\u2026' : submitLabel;
+            }
+            if (!active) { return; }
+            renderPending();
+        }
+
+        /* Pending chips are drawn from the picked files rather than from
+         * input.files, because the merge has not happened yet - at this point
+         * input.files still holds only this pick, and kept holds the rest. */
+        function renderPending() {
+            list.textContent = '';
+            Array.prototype.forEach.call(kept.concat(pending), function (file) {
+                var item = document.createElement('li');
+                item.className = 'rep-file';
+                var name = document.createElement('span');
+                name.className = 'rep-file-name';
+                name.textContent = file.name;
+                var size = document.createElement('span');
+                size.className = 'rep-file-size';
+                var isPending = pending.indexOf(file) !== -1;
+                size.textContent = isPending ? '(Preparing\u2026)' : '(' + sizeLabel(file.size) + ')';
+                item.appendChild(name);
+                item.appendChild(size);
+                list.appendChild(item);
+            });
+        }
+
+        /* Sequential, not parallel: three full-size decodes at once will
+         * exhaust memory on a cheap phone, the exact device this is for. */
+        function shrinkThenMerge() {
+            var picked = Array.prototype.slice.call(input.files);
+            if (!picked.length) { finishMerge(); return; }
+
+            setBusy(true, picked);
+            if (typeof checkAllValid === 'function') { checkAllValid(); }
+
+            var results = [];
+            var index = 0;
+
+            function next() {
+                if (index >= picked.length) {
+                    if (typeof DataTransfer !== 'undefined') {
+                        var swapped = new DataTransfer();
+                        results.forEach(function (file) { swapped.items.add(file); });
+                        merging = true;
+                        input.files = swapped.files;
+                        merging = false;
+                    }
+                    setBusy(false);
+                    finishMerge();
+                    return;
+                }
+                var file = picked[index++];
+                downscale(file, function (result) {
+                    results.push(result);
+                    next();
+                });
+            }
+
+            next();
+        }
+
+        function finishMerge() {
+            mergePicked();
+            render();
+            if (typeof validatePhotos === 'function') { validatePhotos(); }
+            if (typeof checkAllValid === 'function') { checkAllValid(); }
+        }
+
+        // The inline onchange fires first and judges the un-merged list, so
+        // the merge re-runs validatePhotos(); `merging` stops the input.files
+        // assignment looping back in here. Shrinking comes BEFORE the merge,
+        // or the 5 MB check would reject a photo about to become 400 KB.
+        input.addEventListener('change', function () {
+            if (merging) { return; }
+            shrinkThenMerge();
+        });
+        render();
+    })();
+    </script>
+
+    <script>
+        (function () {
+            var overlay = document.getElementById('report-confirm-overlay');
+            var cancelBtn = document.getElementById('report-confirm-cancel');
+            var acceptBtn = document.getElementById('report-confirm-accept');
+            var button = document.getElementById('submit-report-btn');
+            // The form only exists when at least one computer is registered.
+            var form = button ? (button.form || button.closest('form')) : null;
+            if (!overlay || !cancelBtn || !acceptBtn || !button || !form) {
+                return;
+            }
+
+            var closeTimer = null;
+            var confirmed = false;
+
+            button.addEventListener('click', function (event) {
+                if (confirmed) {
+                    return;
+                }
+                // Let the browser point at the empty field first: no point
+                // confirming a submit that cannot go through.
+                if (form.checkValidity && !form.checkValidity()) {
+                    return;
+                }
+                event.preventDefault();
+                // The last look at where the receipt goes, before Send.
+                var emailOut = document.getElementById('report-confirm-email');
+                if (emailOut) {
+                    emailOut.textContent = document.getElementById('reporter_email').value.trim();
+                }
+                if (closeTimer !== null) {
+                    window.clearTimeout(closeTimer);
+                    closeTimer = null;
+                }
+                overlay.classList.remove('hidden');
+                void overlay.offsetWidth;
+                overlay.classList.add('modal-open');
+                cancelBtn.focus();
+            });
+
+            function close() {
+                overlay.classList.remove('modal-open');
+                if (closeTimer !== null) {
+                    window.clearTimeout(closeTimer);
+                }
+                closeTimer = window.setTimeout(function () {
+                    closeTimer = null;
+                    if (!overlay.classList.contains('modal-open')) {
+                        overlay.classList.add('hidden');
+                    }
+                }, 140);
+            }
+
+            cancelBtn.addEventListener('click', close);
+            overlay.addEventListener('click', function (event) {
+                if (event.target === overlay) { close(); }
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && overlay.classList.contains('modal-open')) {
+                    close();
+                }
+            });
+
+            var sending = document.getElementById('report-sending');
+
+            function showSending() {
+                if (!sending) { return; }
+                sending.classList.remove('hidden');
+            }
+
+            function hideSending() {
+                if (!sending) { return; }
+                sending.classList.add('hidden');
+            }
+
+            /* Going Back can restore this page from the browser's cache
+             * exactly as it was left - overlay included - which would look
+             * like a permanently frozen form. event.persisted marks that
+             * restore, and clearing on every pageshow is harmless on a
+             * normal load because the overlay is already hidden. */
+            window.addEventListener('pageshow', function () {
+                confirmed = false;
+                hideSending();
+            });
+
+            /* On the submit event, not the accept click: requestSubmit()
+             * re-runs the checks, any of which can still stop it, and the
+             * spinner would cover the error the person needs to read. */
+            form.addEventListener('submit', function () {
+                showSending();
+            });
+
+            acceptBtn.addEventListener('click', function () {
+                confirmed = true;
+                close();
+                // requestSubmit(), not submit(): submit() would skip the
+                // required fields and the photo checks.
+                if (form.requestSubmit) {
+                    form.requestSubmit(button);
+                } else {
+                    button.click();
+                }
+            });
+        })();
+
+        // The description rules. Each one has a twin in description_error() in
+        // app.py, checked in the same order with the same message - if the two
+        // disagree, the page either sends what the server refuses or refuses
+        // what the server would take.
+        var DESC_LETTER = /[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u024F]/;
+        var DESC_LETTER_OR_SPACE = /[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u024F \t\n]/g;
+        var DESC_ALLOWED = /^[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u024F0-9 \t\n.,!?'"()\-:;\/#&%+@_*]+$/;
+        // A surrogate half is half of a character outside the basic plane,
+        // which is where emoji live.
+        var DESC_EMOJI = /[\u2600-\u27BF\uD800-\uDFFF]/;
+        // Digits are exempt: the five zeros in 0x0000007E are an error code.
+        var DESC_REPEAT = /([^0-9])\1{4,}/;
+        // No y in the run - it is a vowel in "rhythm".
+        var DESC_CONSONANTS = /[bcdfghjklmnpqrstvwxz]{6,}/i;
+
+        // Characters, not UTF-16 units, as the server counts them.
+        function charCount(val) {
+            return Array.from(val).length;
+        }
+
+        // What the server checks and saves: one character per line break
+        // (the browser SENDS each as two), trimmed.
+        function cleanDescription(val) {
+            return val.replace(/\r\n?/g, '\n').trim();
+        }
+
+        function descriptionError(raw) {
+            var val = cleanDescription(raw);
+            var length = charCount(val);
+            if (!val) return 'Please describe the problem.';
+            if (length < 10) return 'Description must be at least 10 characters.';
+            if (length > 500) return 'Description must be 500 characters or fewer.';
+            if (DESC_EMOJI.test(val)) return 'Description cannot contain emojis.';
+            if (DESC_REPEAT.test(val)) return 'Description cannot repeat the same character 5 times in a row.';
+            if (!DESC_ALLOWED.test(val)) return 'Description can only contain letters, numbers, and basic punctuation.';
+            var lettersAndSpaces = (val.match(DESC_LETTER_OR_SPACE) || []).length;
+            if (!DESC_LETTER.test(val) || lettersAndSpaces < 0.4 * length || DESC_CONSONANTS.test(val)) {
+                return "That doesn't look like a real description. Please explain the problem in your own words.";
+            }
+            return null;
+        }
+
+        function updateDescriptionCount() {
+            var input = document.getElementById('description');
+            var countEl = document.getElementById('description-char-count');
+            if (input && countEl) countEl.textContent = charCount(input.value) + ' / 500 characters';
+        }
+
+        function setSelectUI(inputId, errorId, message) {
+            var input = document.getElementById(inputId);
+            var errorEl = document.getElementById(errorId);
+            if (!input.value) {
+                errorEl.textContent = message;
+                errorEl.classList.remove('hidden');
+                input.classList.add('border-danger');
+                input.classList.remove('border-field');
+            } else {
+                errorEl.textContent = '';
+                errorEl.classList.add('hidden');
+                input.classList.remove('border-danger');
+                input.classList.add('border-field');
+            }
+        }
+
+        // The visible fields depend on the role, so required-ness has to
+        // follow visibility (see syncStudentRequired).
+        var STUDENT_FIELD_IDS = ['reporter_student_number', 'reporter_program', 'reporter_section'];
+        var FACULTY_FIELD_IDS = ['reporter_department'];
+
+        function isStudent() {
+            return document.getElementById('reporter_role').value === 'student';
+        }
+
+        function isFaculty() {
+            return document.getElementById('reporter_role').value === 'faculty';
+        }
+
+        /* The hidden block's inputs are un-required and cleared: a hidden
+         * `required` input looks like a dead button, and a student who
+         * switches to Faculty must not submit a leftover section. */
+        function applyRoleBlock(blockId, fieldIds, show) {
+            var block = document.getElementById(blockId);
+            if (!block) { return; }
+            if (show) {
+                block.classList.remove('hidden');
+            } else {
+                block.classList.add('hidden');
+            }
+            for (var i = 0; i < fieldIds.length; i++) {
+                var field = document.getElementById(fieldIds[i]);
+                if (!field) { continue; }
+                if (show) {
+                    field.setAttribute('required', 'required');
+                } else {
+                    field.removeAttribute('required');
+                    field.value = '';
+                    document.getElementById(fieldIds[i] + '-error').classList.add('hidden');
+                    field.classList.remove('border-danger');
+                    field.classList.add('border-field');
+                }
+            }
+        }
+
+        function syncStudentRequired() {
+            applyRoleBlock('student-fields', STUDENT_FIELD_IDS, isStudent());
+            applyRoleBlock('faculty-fields', FACULTY_FIELD_IDS, isFaculty());
+            syncProgramOther();
+            checkAllValid();
+        }
+
+        function setFieldError(inputId, message) {
+            var input = document.getElementById(inputId);
+            var errorEl = document.getElementById(inputId + '-error');
+            if (message) {
+                errorEl.textContent = message;
+                errorEl.classList.remove('hidden');
+                input.classList.add('border-danger');
+                input.classList.remove('border-field');
+            } else {
+                errorEl.textContent = '';
+                errorEl.classList.add('hidden');
+                input.classList.remove('border-danger');
+                input.classList.add('border-field');
+            }
+        }
+
+        // Each reporter rule below has its twin in reporter_fields_error() in
+        // app.py, with the same message.
+        // Letters - accented ones and n with a tilde included - spaces and
+        // . ' -. The accented block is split around U+00D7 and U+00F7, the
+        // multiplication and division signs, which are not letters.
+        var NAME_ALLOWED = /^[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u024F.'\- ]+$/;
+
+        function nameError(val) {
+            if (!val) return 'Your name is required.';
+            if (val.length < 2 || val.length > 60) return 'Name must be between 2 and 60 characters.';
+            if (!NAME_ALLOWED.test(val)) return "Name can only contain letters, spaces, and . ' - characters.";
+            if ((val.match(/[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u024F]/g) || []).length < 2) return 'Enter your name using letters.';
+            return null;
+        }
+
+        // The same rule as report_email_error() in app.py, which the route
+        // applies to this field. The part before the @ takes the characters an
+        // <input type="email"> takes, never with a dot first, last or twice;
+        // the part after is labels of letters, digits and inner hyphens ending
+        // in two or more letters - so "jols@g" and "name@gmail.c" are refused
+        // here, before the Send button.
+        var EMAIL_LOCAL = /^[A-Za-z0-9!#$%&'*+\/=?^_`{|}~-]+(\.[A-Za-z0-9!#$%&'*+\/=?^_`{|}~-]+)*$/;
+        var EMAIL_DOMAIN = /^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$/;
+        // Only .com and .ph, in any case - AppEase is used only in the
+        // Philippines. Checked on the part after the last dot, before the
+        // domain pattern, so gmail.c and gmail.co are told what to do.
+        var EMAIL_ENDING = /^(com|ph)$/i;
+
+        function emailError(val) {
+            if (!val) return 'Your email address is required.';
+            var invalid = 'Enter a valid email address, like name@gmail.com.';
+            if (val.length > 120 || (val.split('@').length - 1) !== 1) return invalid;
+            var at = val.indexOf('@');
+            var local = val.slice(0, at);
+            var domain = val.slice(at + 1);
+            if (local.length > 64 || !EMAIL_LOCAL.test(local)) return invalid;
+            var dot = domain.lastIndexOf('.');
+            var ending = dot === -1 ? '' : domain.slice(dot + 1);
+            if (ending && !EMAIL_ENDING.test(ending)) return 'Please use an email ending in .com or .ph.';
+            if (!EMAIL_DOMAIN.test(domain)) return invalid;
+            return null;
+        }
+
+        // Ten digits; spaces and hyphens are removed first, so 2023-000000 is
+        // the same number. The server saves only the digits.
+        function studentNumberError(val) {
+            if (!val) return 'Student number is required.';
+            if (!/^[0-9]{10}$/.test(val.replace(/[ -]/g, ''))) return 'Enter your 10-digit student number, like 2023000000.';
+            return null;
+        }
+
+        // Program, Year & Section and Department mirror
+        // reporter_fields_error() in app.py, with the same messages.
+        var PROGRAM_OTHER = {{ report_program_other | tojson }};
+        var REPORTER_TEXT_ALLOWED = /^[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u024F0-9.&\- ]+$/;
+        // One year from 1 to 5 and one section letter, once spaces and
+        // hyphens are gone: 4c, 4 c and 4-C are all 4C.
+        var SECTION_PATTERN = /^[1-5][A-Za-z]$/;
+
+        // The dropdown offers only listed programs and Other..., so the one
+        // thing to catch here is no choice at all.
+        function programError() {
+            return document.getElementById('reporter_program').value ? null : 'Please select your program.';
+        }
+
+        function isOtherProgram() {
+            return document.getElementById('reporter_program').value === PROGRAM_OTHER;
+        }
+
+        function programOtherError(val) {
+            if (!val) return 'Type your program.';
+            if (!REPORTER_TEXT_ALLOWED.test(val)) return 'Program can only contain letters, numbers, spaces and . & - characters.';
+            if (val.length < 2 || val.length > 60 || !DESC_LETTER.test(val)) return "Type your program's name, 2 to 60 characters.";
+            return null;
+        }
+
+        // The typed-program box shows only for a student who chose Other...,
+        // and is required only then. Hiding it clears it, so a typed program
+        // never travels with a listed one.
+        function syncProgramOther() {
+            var box = document.getElementById('program-other-field');
+            var input = document.getElementById('reporter_program_other');
+            if (!box || !input) return;
+            if (isStudent() && isOtherProgram()) {
+                box.classList.remove('hidden');
+                input.setAttribute('required', 'required');
+            } else {
+                box.classList.add('hidden');
+                input.removeAttribute('required');
+                input.value = '';
+                setFieldError('reporter_program_other', null);
+            }
+        }
+
+        function sectionError(val) {
+            if (!val) return 'Year and section is required.';
+            if (!SECTION_PATTERN.test(val.replace(/[ -]/g, ''))) return 'Enter your year and section, like 4C.';
+            return null;
+        }
+
+        function trimmed(id) {
+            return document.getElementById(id).value.trim().replace(/\s+/g, ' ');
+        }
+
+        function validateRole() {
+            setSelectUI('reporter_role', 'reporter_role-error', 'Please select who is reporting.');
+            syncStudentRequired();
+            checkAllValid();
+        }
+
+        function validateReporterName() {
+            setFieldError('reporter_name', nameError(trimmed('reporter_name')));
+            checkAllValid();
+        }
+
+        function validateReporterEmail() {
+            setFieldError('reporter_email', emailError(document.getElementById('reporter_email').value.trim()));
+            updateEmailSuggestion();
+            checkAllValid();
+        }
+
+        // "Did you mean...?" from this list alone - no lookup, so it works
+        // with no internet - and only advice: it never stops Send.
+        var EMAIL_DOMAINS = [
+            'gmail.com', 'yahoo.com', 'yahoo.com.ph', 'outlook.com', 'hotmail.com',
+            'icloud.com', 'live.com', 'bulsu.edu.ph',
+            // Real providers that look like slips on the ones above. Listed
+            // so they are never "corrected" - and a slip on one of them is
+            // caught too. Every entry ends in .com or .ph, so a suggestion
+            // is always an address the form accepts.
+            'ymail.com', 'mail.com', 'me.com', 'msn.com', 'aol.com', 'gmx.com',
+            'protonmail.com'
+        ];
+        // The domain the reporter chose to keep. Typing a different one
+        // brings suggestions back.
+        var keptEmailDomain = null;
+
+        // Edits to turn a into b: add, remove or change a letter, or swap two
+        // letters side by side (gmial -> gmail is one).
+        function editDistance(a, b) {
+            var d = [];
+            for (var i = 0; i <= a.length; i++) { d.push([i]); }
+            for (var j = 1; j <= b.length; j++) { d[0][j] = j; }
+            for (i = 1; i <= a.length; i++) {
+                for (j = 1; j <= b.length; j++) {
+                    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1,
+                                       d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+                    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+                        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+                    }
+                }
+            }
+            return d[a.length][b.length];
+        }
+
+        function suggestedDomain(domain) {
+            domain = domain.toLowerCase();
+            if (!domain || EMAIL_DOMAINS.indexOf(domain) !== -1) return null;
+            var best = null;
+            var bestDistance = Infinity;
+            var tied = false;
+            var name = domain.split('.')[0];
+            // The provider's own name with the wrong ending - gmail.cw,
+            // yahoo.co, bulsu.edu: the closest known ending for that name.
+            for (var i = 0; i < EMAIL_DOMAINS.length; i++) {
+                if (EMAIL_DOMAINS[i].split('.')[0] !== name) continue;
+                var distance = editDistance(domain, EMAIL_DOMAINS[i]);
+                if (distance < bestDistance) { best = EMAIL_DOMAINS[i]; bestDistance = distance; }
+            }
+            if (best) return best;
+            // Otherwise one slip from exactly one known domain - gmial.com,
+            // outlok.com. Two equally close means no suggestion.
+            for (i = 0; i < EMAIL_DOMAINS.length; i++) {
+                distance = editDistance(domain, EMAIL_DOMAINS[i]);
+                if (distance > 1) continue;
+                if (distance < bestDistance) { best = EMAIL_DOMAINS[i]; bestDistance = distance; tied = false; }
+                else if (distance === bestDistance) { tied = true; }
+            }
+            return tied ? null : best;
+        }
+
+        function updateEmailSuggestion() {
+            var box = document.getElementById('reporter_email-suggest');
+            if (!box) return;
+            var val = document.getElementById('reporter_email').value.trim();
+            var at = val.indexOf('@');
+            var suggestion = null;
+            if (at > 0 && at === val.lastIndexOf('@')) {
+                var domain = val.slice(at + 1);
+                var fixed = domain.toLowerCase() === keptEmailDomain ? null : suggestedDomain(domain);
+                if (fixed) suggestion = val.slice(0, at) + '@' + fixed;
+            }
+            if (suggestion) {
+                document.getElementById('reporter_email-suggestion').textContent = suggestion;
+                box.classList.remove('hidden');
+            } else {
+                box.classList.add('hidden');
+            }
+        }
+
+        (function () {
+            var use = document.getElementById('reporter_email-use');
+            var keep = document.getElementById('reporter_email-keep');
+            var input = document.getElementById('reporter_email');
+            if (!use || !keep || !input) return;
+            use.addEventListener('click', function () {
+                input.value = document.getElementById('reporter_email-suggestion').textContent;
+                keptEmailDomain = null;
+                validateReporterEmail();
+                input.focus();
+            });
+            keep.addEventListener('click', function () {
+                var val = input.value.trim();
+                keptEmailDomain = val.slice(val.indexOf('@') + 1).toLowerCase();
+                updateEmailSuggestion();
+                input.focus();
+            });
+        })();
+
+        function validateStudentNumber() {
+            setFieldError('reporter_student_number', studentNumberError(trimmed('reporter_student_number')));
+            checkAllValid();
+        }
+
+        function validateProgram() {
+            setFieldError('reporter_program', programError());
+            syncProgramOther();
+            checkAllValid();
+        }
+
+        function validateProgramOther() {
+            setFieldError('reporter_program_other', programOtherError(trimmed('reporter_program_other')));
+            checkAllValid();
+        }
+
+        function validateSection() {
+            setFieldError('reporter_section', sectionError(trimmed('reporter_section')));
+            checkAllValid();
+        }
+
+        // Photos are optional, so "no files" is valid. Checked here as well as
+        // on the server so a 6 MB photo is caught before the upload starts.
+        var MAX_PHOTOS = 3;
+        var MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+        var ALLOWED_PHOTO_EXT = /\.(jpg|jpeg|png|webp)$/i;
+
+        function photosError() {
+            var input = document.getElementById('report_photos');
+            var files = input.files;
+            if (!files || files.length === 0) return null;
+            if (files.length > MAX_PHOTOS) return 'Please attach at most 3 photos.';
+            for (var i = 0; i < files.length; i++) {
+                if (!ALLOWED_PHOTO_EXT.test(files[i].name)) return 'Photos must be JPG, PNG or WEBP files.';
+                if (files[i].size === 0) return 'One of the photos is empty.';
+                if (files[i].size > MAX_PHOTO_BYTES) return 'Each photo must be 5 MB or smaller.';
+            }
+            return null;
+        }
+
+        function validatePhotos() {
+            var error = photosError();
+            var errorEl = document.getElementById('report_photos-error');
+            var hintEl = document.getElementById('report_photos-hint');
+            var files = document.getElementById('report_photos').files;
+            if (error) {
+                errorEl.textContent = error;
+                errorEl.classList.remove('hidden');
+            } else {
+                errorEl.textContent = '';
+                errorEl.classList.add('hidden');
+                if (files && files.length) {
+                    var names = [];
+                    for (var i = 0; i < files.length; i++) {
+                        names.push(files[i].name + ' (' + Math.max(1, Math.round(files[i].size / 1024)) + ' KB)');
+                    }
+                    hintEl.textContent = names.join(', ');
+                } else {
+                    hintEl.textContent = 'You can attach up to 3 photos of the problem. JPG, PNG or WEBP, 5 MB each.';
+                }
+            }
+            checkAllValid();
+        }
+
+        function departmentError(value) {
+            if (!value) return 'Department is required.';
+            if (value.length > 60) return 'Department must be 60 characters or fewer.';
+            if (!REPORTER_TEXT_ALLOWED.test(value)) {
+                return 'Department can only contain letters, numbers, spaces and . & - characters.';
+            }
+            if (value.length < 2 || !DESC_LETTER.test(value)) return 'Enter your department name.';
+            return '';
+        }
+
+        function validateDepartment() {
+            setFieldError('reporter_department', departmentError(trimmed('reporter_department')));
+            checkAllValid();
+        }
+
+        function reporterIsValid() {
+            if (!document.getElementById('reporter_role').value) return false;
+            if (nameError(trimmed('reporter_name'))) return false;
+            if (emailError(document.getElementById('reporter_email').value.trim())) return false;
+            if (isFaculty()) return !departmentError(trimmed('reporter_department'));
+            if (!isStudent()) return true;
+            if (studentNumberError(trimmed('reporter_student_number'))) return false;
+            if (programError()) return false;
+            if (isOtherProgram() && programOtherError(trimmed('reporter_program_other'))) return false;
+            if (sectionError(trimmed('reporter_section'))) return false;
+            return true;
+        }
+
+        function validateComputer() {
+            setSelectUI('computer_hostname', 'computer_hostname-error', 'Please select a computer.');
+            checkAllValid();
+        }
+
+        function validateType() {
+            setSelectUI('problem_type', 'problem_type-error', 'Please select a problem type.');
+            checkAllValid();
+        }
+
+        function validateDescription() {
+            setFieldError('description', descriptionError(document.getElementById('description').value));
+            updateDescriptionCount();
+            checkAllValid();
+        }
+
+        function checkAllValid() {
+            var computerVal = document.getElementById('computer_hostname').value;
+            var typeVal = document.getElementById('problem_type').value;
+            var descVal = document.getElementById('description').value;
+            var allOk = reporterIsValid() && !photosError() && !!computerVal && !!typeVal && !descriptionError(descVal);
+            // Resizing is asynchronous; without photosBusy the form could
+            // post a half-merged set mid-shrink.
+            document.getElementById('submit-report-btn').disabled = !allOk || !!window.photosBusy;
+        }
+
+        // A refused report comes back with what was typed still in the
+        // fields, so start from those values as if each had just been typed:
+        // the role's own fields showing, the count right, and Send enabled
+        // when everything is valid. On an ordinary visit this changes nothing.
+        syncStudentRequired();
+        updateDescriptionCount();
+        updateEmailSuggestion();
+        checkAllValid();
+    </script>
+
+    {#- /static/js/ is one of the prefixes guard_public_host() allows, so
+        toasts.js loads through the tunnel as well as on the LAN. Messages go
+        through tojson: a server string with an apostrophe would otherwise
+        end the JS string early. -#}
+    <div id="toast-container"></div>
+    <script defer src="{{ url_for('static', filename='js/toasts.js') }}"></script>
+    <script>
+        // defer means toasts.js has run by DOMContentLoaded, so showToast
+        // exists by the time this fires. Guarded anyway - a missing script
+        // should cost the confirmation, not throw on every page load.
+        document.addEventListener('DOMContentLoaded', function () {
+            {% if error_field %}
+            // The field the server refused, so the reporter lands on it.
+            // Photos focus their button: the real input sits off-screen.
+            var refusedField = document.getElementById({{ ('report_photos-trigger' if error_field == 'report_photos' else error_field) | tojson }});
+            if (refusedField) { refusedField.focus(); }
+            {% endif %}
+            if (typeof window.showToast !== 'function') { return; }
+            {% if success_message %}
+                window.showToast({{ success_message | tojson }}, 'success');
+            {% endif %}
+            {% if error_message %}
+                window.showToast({{ error_message | tojson }}, 'error');
+            {% endif %}
+        });
+    </script>
+</body>
+</html>

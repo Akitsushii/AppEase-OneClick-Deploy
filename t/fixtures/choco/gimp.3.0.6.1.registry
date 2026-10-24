@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<registrySnapshot xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <user>S-1-5-21-1111111111-2222222222-3333333333-1001</user>
+  <keys>
+    <key installerType="InnoSetup" displayName="GIMP 3.0.6-1" displayVersion="3.0.6.1">
+      <RegistryView>Registry64</RegistryView>
+      <KeyPath>HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\GIMP-3_is1</KeyPath>
+      <DefaultValue />
+      <InstallLocation><![CDATA[C:\Users\LabUser\AppData\Local\Programs\GIMP 3\]]></InstallLocation>
+      <UninstallString><![CDATA["C:\Users\LabUser\AppData\Local\Programs\GIMP 3\uninst\unins000.exe" /SILENT]]></UninstallString>
+      <HasQuietUninstall>true</HasQuietUninstall>
+      <Publisher><![CDATA[The GIMP Team]]></Publisher>
+      <InstallDate>20251116</InstallDate>
+      <InstallSource><![CDATA[]]></InstallSource>
+      <Language />
+      <Version />
+      <VersionMajor>3</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <SystemComponent>false</SystemComponent>
+      <WindowsInstaller>false</WindowsInstaller>
+      <NoRemove>false</NoRemove>
+      <NoModify>true</NoModify>
+      <NoRepair>true</NoRepair>
+      <ReleaseType />
+      <ParentKeyName />
+    </key>
+  </keys>
+</registrySnapshot>

@@ -1,0 +1,25 @@
+Chocolatey v2.7.3
+3 validations performed. 2 success(es), 1 warning(s), and 0 error(s).
+
+Validation Warnings:
+ - A pending system reboot request has been detected, however, this is
+   being ignored due to the current Chocolatey configuration.  If you
+   want to halt when this occurs, then either set the global feature
+   using:
+     choco feature enable --name="exitOnRebootDetected"
+   or pass the option --exit-when-reboot-detected.
+
+Uninstalling the following packages:
+vlc.install
+
+vlc.install v3.0.24
+Uninstalling vlc.install...
+0
+vlc.install has been uninstalled.
+ Running auto uninstaller...
+ Skipping auto uninstaller - 'VLC media player' appears to have been uninstalled already by other means.
+ vlc.install has been successfully uninstalled.
+
+Chocolatey uninstalled 1/1 packages. 
+ See the log for details (C:\ProgramData\chocolatey\logs\chocolatey.log).
+0 

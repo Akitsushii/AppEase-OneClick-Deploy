@@ -1,0 +1,740 @@
+{% extends 'base.html' %}
+
+{% block title %}Settings - AppEase{% endblock %}
+{#- base.html's breadcrumb renders this after the section crumb. -#}
+{% block page_title %}Settings{% endblock %}
+
+{% block content %}
+{%- import "_theme_toggle.html" as theme_ui -%}
+{% if error_message %}
+    <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ error_message | tojson }}, 'error'); });</script>
+{% endif %}
+
+{% if success_message %}
+    <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ success_message | tojson }}, 'success'); });</script>
+{% endif %}
+
+{#- Identity card, ABOVE the tabs: it describes the whole account, and
+    inside a panel it would vanish on opening Change Password. -#}
+<div class="card profile-headcard">
+    <section>
+        <div class="profile-identity">
+            {#- A LABEL, not a button: it natively opens the file picker
+                with no click-forwarding script. The input is clipped, not
+                display:none, which would drop it from the tab order. -#}
+            <form id="avatar-form" method="post" action="{{ url_for('settings') }}"
+                  enctype="multipart/form-data" class="profile-avatar-wrap">
+                <input type="hidden" name="form_type" value="update_avatar">
+                <label class="profile-avatar" for="avatar_file">
+                    {#- avatar_url is never empty (avatar_url_for() gives
+                        a default). The hidden initials are the broken-image
+                        fallback; this circle is a flex row, so the swap
+                        must be explicit, and only onerror can tell a
+                        missing file from a slow one. -#}
+                    <img id="avatar-preview" src="{{ avatar_url }}" alt="Your profile picture"
+                         onerror="this.hidden = true; if (this.nextElementSibling) { this.nextElementSibling.hidden = false; }">
+                    <span id="avatar-initials" hidden>{{ (account['first_name'] or '')[:1] | upper }}{{ (account['last_name'] or '')[:1] | upper }}</span>
+                    <span class="profile-avatar-badge" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></svg>
+                    </span>
+                    <span class="sr-only-field">Change profile picture</span>
+                </label>
+                <input type="file" id="avatar_file" name="avatar" accept="image/png,image/jpeg,image/webp" class="profile-file">
+                {#- No Save/Cancel: picking a picture IS the intent, and
+                    block children of this 80px wrap push the identity row
+                    apart. Errors are toasts for the same layout reason. -#}
+                <span id="avatar-busy" class="profile-avatar-busy hidden" role="status" aria-live="polite">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                    <span class="sr-only-field">Uploading your picture</span>
+                </span>
+            </form>
+
+            <div class="profile-identity-body">
+                <div class="flex flex-wrap items-center gap-2">
+                    <p class="profile-identity-name">{{ account['first_name'] | format_name(account['middle_initial'], account['last_name']) or account['username'] }}</p>
+                    {% if account["role"] == "admin" %}
+                        <span class="badge">{{ account["role"] | role_label }}</span>
+                    {% else %}
+                        <span class="badge" data-variant="secondary">{{ account["role"] | role_label }}</span>
+                    {% endif %}
+                </div>
+                <ul class="profile-facts">
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z" /><path d="m22 7-10 5L2 7" /></svg>
+                        <span>{{ account["email"] or "No email on file" }}</span>
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0" /><circle cx="12" cy="7" r="4" /></svg>
+                        <span class="font-mono">{{ account["username"] }}</span>
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4" /><path d="M8 2v4" /><path d="M3 10h18" /></svg>
+                        <span>Joined {{ account["created_at"] | manila }}</span>
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                        <span>Last login {{ account["last_login"] | manila }}</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="tabs settings-shell w-full" id="profile-tabs">
+    {#- One tablist, so error_field handling below has a single tablist
+        to reason about. The ids stay profile-*: renaming them would
+        re-thread FIELD_TAB and FIELD_DIALOG for no gain. -#}
+    <nav role="tablist" aria-orientation="vertical" aria-label="Settings sections" class="settings-rail">
+        <button type="button" role="tab" id="profile-tab-account" aria-controls="profile-panel-account" aria-selected="true" tabindex="0">My Profile</button>
+        <button type="button" role="tab" id="profile-tab-password" aria-controls="profile-panel-password" aria-selected="false" tabindex="-1">Change Password</button>
+        <button type="button" role="tab" id="profile-tab-appearance" aria-controls="profile-panel-appearance" aria-selected="false" tabindex="-1">Appearance</button>
+        <button type="button" role="tab" id="profile-tab-activity" aria-controls="profile-panel-activity" aria-selected="false" tabindex="-1">My Recent Activity</button>
+    </nav>
+
+    {#- ---------------------------------------------------------------
+        ACCOUNT - something you READ: the page is opened to check a detail
+        far more often than to change one, so edits sit behind dialogs and
+        no password box sits exposed.
+
+        TWO dialogs: only the sign-in one needs the current password, and
+        one dialog would demand it to fix a typo in a first name.
+        --------------------------------------------------------------- -#}
+    <div role="tabpanel" id="profile-panel-account" aria-labelledby="profile-tab-account" tabindex="-1" aria-selected="true">
+        <div class="card">
+            {#- No card header on any panel: the tab already names it. -#}
+            <section>
+                <div class="profile-summary">
+                    <div class="profile-summary-head">
+                        <div>
+                            <p class="text-sm font-medium text-ink">Account information</p>
+                            <p class="text-xs text-muted">The name your colleagues see on the audit trail and every account list.</p>
+                        </div>
+                        <button type="button" class="btn" data-variant="outline" data-size="sm"
+                                id="profile-edit-name"
+                                onclick="document.getElementById('profile-name-dialog').showModal()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>Edit</button>
+                    </div>
+                    {#- Full name as composed, the exact string every list
+                        prints; the parts below are what the dialog holds.
+                        "Not set": an empty row reads as a fault. -#}
+                    <dl class="profile-summary-list">
+                        <dt>Full name</dt>
+                        <dd>{{ account['first_name'] | format_name(account['middle_initial'], account['last_name']) or "Not set" }}</dd>
+                        <dt>Last name</dt>
+                        <dd>{% if account['last_name'] %}{{ account['last_name'] }}{% else %}<span class="text-muted">Not set</span>{% endif %}</dd>
+                        <dt>First name</dt>
+                        <dd>{% if account['first_name'] %}{{ account['first_name'] }}{% else %}<span class="text-muted">Not set</span>{% endif %}</dd>
+                        <dt>Middle initial</dt>
+                        <dd>{% if account['middle_initial'] %}{{ account['middle_initial'] }}{% else %}<span class="text-muted">Not set</span>{% endif %}</dd>
+                    </dl>
+                </div>
+
+                <div class="profile-summary">
+                    <div class="profile-summary-head">
+                        <div>
+                            <p class="text-sm font-medium text-ink">Sign-in details</p>
+                            <p class="text-xs text-muted">Changing either of these needs your current password.</p>
+                        </div>
+                        <button type="button" class="btn" data-variant="outline" data-size="sm"
+                                id="profile-edit-signin"
+                                onclick="document.getElementById('profile-signin-dialog').showModal()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>Edit</button>
+                    </div>
+                    <dl class="profile-summary-list">
+                        <dt>Username</dt>
+                        <dd class="font-mono text-xs">{{ account['username'] }}</dd>
+                        <dt>Email</dt>
+                        <dd>{% if account['email'] %}{{ account['email'] }}{% else %}<span class="text-muted">Not set</span>{% endif %}</dd>
+                    </dl>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    {#- NO data-confirm on either Save: a native <dialog> is in the top
+        layer, so base.html's z-50 confirm modal would open UNDERNEATH it
+        and look like a frozen page. The warning is the line above Save
+        instead, read before the click. -#}
+    <dialog id="profile-name-dialog" class="dialog" aria-labelledby="profile-name-title"
+            aria-describedby="profile-name-description" onclick="if (event.target === this) this.close()">
+        <div class="sm:max-w-sm">
+            <header>
+                <h2 id="profile-name-title">Edit your name</h2>
+                <p id="profile-name-description">Use the name your colleagues will recognise.</p>
+            </header>
+            <section>
+                <form method="post" action="{{ url_for('settings') }}" id="profile-name-form" class="sw-edit-fields">
+                    <input type="hidden" name="form_type" value="update_name">
+                    <div role="group" class="field">
+                        <label class="label" for="first_name">First Name *</label>
+                        <input class="input" type="text" id="first_name" name="first_name" value="{{ account['first_name'] or '' }}" required oninput="validateProfileFirstName()" autocomplete="off">
+                        <span id="first_name-error" class="profile-error hidden" role="alert"></span>
+                    </div>
+                    <div role="group" class="field">
+                        <label class="label" for="last_name">Last Name *</label>
+                        <input class="input" type="text" id="last_name" name="last_name" value="{{ account['last_name'] or '' }}" required oninput="validateProfileLastName()" autocomplete="off">
+                        <span id="last_name-error" class="profile-error hidden" role="alert"></span>
+                    </div>
+                    <div role="group" class="field">
+                        <label class="label" for="middle_initial">Middle Initial <span class="font-normal text-muted">(optional)</span></label>
+                        <input class="input" type="text" id="middle_initial" name="middle_initial" value="{{ account['middle_initial'] or '' }}" maxlength="2" oninput="validateProfileMiddleInitial()" autocomplete="off">
+                        <span id="middle_initial-error" class="profile-error hidden" role="alert"></span>
+                    </div>
+                </form>
+            </section>
+            <footer>
+                <button type="button" class="btn" data-variant="outline" onclick="this.closest('dialog').close()">Cancel</button>
+                <button type="submit" form="profile-name-form" id="save-name-btn" class="btn">Save Name</button>
+            </footer>
+            <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-label="Close dialog" onclick="this.closest('dialog').close()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
+        </div>
+    </dialog>
+
+    <dialog id="profile-signin-dialog" class="dialog" aria-labelledby="profile-signin-title"
+            aria-describedby="profile-signin-description" onclick="if (event.target === this) this.close()">
+        <div class="sm:max-w-sm">
+            <header>
+                <h2 id="profile-signin-title">Edit sign-in details</h2>
+                <p id="profile-signin-description">How you sign in, and where resets go.</p>
+            </header>
+            <section>
+                <form method="post" action="{{ url_for('settings') }}" id="profile-signin-form" class="sw-edit-fields">
+                    <input type="hidden" name="form_type" value="change_account">
+                    <div role="group" class="field" {% if error_field == 'username' %}data-invalid{% endif %}>
+                        <label class="label" for="username">Username *</label>
+                        <input class="input" type="text" id="username" name="username" value="{{ account['username'] or '' }}" required maxlength="30" autocomplete="off" oninput="validateAccountUsername()"
+                               {% if error_field == 'username' %}aria-invalid="true"{% endif %}>
+                        <span id="username-error" class="profile-error {% if error_field != 'username' %}hidden{% endif %}" role="alert">{% if error_field == 'username' %}{{ error_message }}{% endif %}</span>
+                        <span class="profile-hint">You sign in with this. Letters, numbers, dot, underscore or hyphen.</span>
+                    </div>
+                    <div role="group" class="field" {% if error_field == 'email' %}data-invalid{% endif %}>
+                        <label class="label" for="email">Email <span class="font-normal text-muted">(optional)</span></label>
+                        <input class="input" type="email" id="email" name="email" value="{{ account['email'] or '' }}" maxlength="120" placeholder="none on file" autocomplete="off"
+                               {% if error_field == 'email' %}aria-invalid="true"{% endif %}>
+                        <span id="email-error" class="profile-error {% if error_field != 'email' %}hidden{% endif %}" role="alert">{% if error_field == 'email' %}{{ error_message }}{% endif %}</span>
+                        <span class="profile-hint">Password resets go here. Leave blank and an admin has to hand yours over in person.</span>
+                    </div>
+                    {#- Boxed off: it is not a change, it is the check on
+                        whether you may make one. -#}
+                    <div role="group" class="field profile-passcheck" {% if error_field == 'account_current_password' %}data-invalid{% endif %}>
+                        <label class="label" for="account_current_password">Current Password *</label>
+                        <input class="input" type="password" id="account_current_password" name="account_current_password" required autocomplete="current-password"
+                               {% if error_field == 'account_current_password' %}aria-invalid="true"{% endif %}>
+                        <span id="account_current_password-error" class="profile-error {% if error_field != 'account_current_password' %}hidden{% endif %}" role="alert">{% if error_field == 'account_current_password' %}{{ error_message }}{% endif %}</span>
+                    </div>
+                </form>
+            </section>
+            <footer>
+                <p class="profile-dialog-note">The old email address is notified of the change.</p>
+                <button type="button" class="btn" data-variant="outline" onclick="this.closest('dialog').close()">Cancel</button>
+                <button type="submit" form="profile-signin-form" id="save-account-btn" class="btn" data-busy="Saving...">Save Details</button>
+            </footer>
+            <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-label="Close dialog" onclick="this.closest('dialog').close()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
+        </div>
+    </dialog>
+
+    {#- --------------------------------------------------------------- -#}
+    <div role="tabpanel" id="profile-panel-password" aria-labelledby="profile-tab-password" tabindex="-1" aria-selected="false" hidden>
+        <div class="card">
+            <section>
+                <form method="post" action="{{ url_for('settings') }}" class="profile-form">
+                    <input type="hidden" name="form_type" value="change_password">
+                    {#- The SERVER renders the red border: the form clears
+                        either way, so without it a failure looks exactly
+                        like a success if the toast was missed. -#}
+                    {% set current_password_failed = error_field == 'current_password' %}
+                    <div role="group" aria-label="Password fields" class="profile-grid">
+                        <div role="group" class="field" {% if current_password_failed %}data-invalid{% endif %}>
+                            <label class="label" for="current_password">Current Password</label>
+                            <input class="input" type="password" id="current_password" name="current_password" required oninput="validateProfileCurrentPassword()"
+                                   {% if current_password_failed %}aria-invalid="true"{% endif %}>
+                            <span id="current_password-error" class="profile-error {% if not current_password_failed %}hidden{% endif %}" role="alert">{% if current_password_failed %}{{ error_message }}{% endif %}</span>
+                        </div>
+
+                        <div class="profile-grid-spacer" aria-hidden="true"></div>
+
+                        <div role="group" class="field">
+                            <label class="label" for="new_password">New Password</label>
+                            <input class="input" type="password" id="new_password" name="new_password" required data-password-policy oninput="validateProfileNewPassword()">
+                            <span id="new_password-error" class="profile-error hidden" role="alert"></span>
+                        </div>
+
+                        <div role="group" class="field">
+                            <label class="label" for="confirm_password">Confirm New Password</label>
+                            <input class="input" type="password" id="confirm_password" name="confirm_password" required oninput="validateProfileConfirmPassword()">
+                            <span id="confirm_password-error" class="profile-error hidden" role="alert"></span>
+                        </div>
+                    </div>
+                    <div class="profile-actions">
+                        <button type="submit" id="change-password-btn"
+                                data-confirm
+                                data-confirm-title="Change your password?"
+                                data-confirm-message="Your old password stops working immediately, and you will need the new one next time you sign in."
+                                data-confirm-action="Change password"
+                                class="btn">Change Password</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </div>
+
+    {#- ---------------------------------------------------------------
+        APPEARANCE. The same macro as the topbar toggle, so the two cannot
+        drift.
+
+        NO FORM AND NO SAVE BUTTON: the theme is a cookie written on click,
+        so there is nothing to submit, and no field for FIELD_TAB.
+
+        Per-BROWSER, not per-account: the lab desktops are shared, and the
+        sign-in page needs a theme before there IS an account.
+        --------------------------------------------------------------- -#}
+    <div role="tabpanel" id="profile-panel-appearance" aria-labelledby="profile-tab-appearance" tabindex="-1" aria-selected="false" hidden>
+        <div class="card">
+            <section>
+                <h2 class="text-base font-semibold text-ink">Appearance</h2>
+                <p class="mt-1 text-sm text-muted">Choose how AppEase looks on this computer.</p>
+
+                <div class="mt-4 flex items-center justify-between gap-4 rounded-lg border border-line p-4">
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-ink">Dark mode</p>
+                        <p class="mt-0.5 text-sm text-muted">
+                            Applies to this browser only, and stays set the next time you sign in
+                            on this computer. It does not follow your account to another machine.
+                        </p>
+                    </div>
+                    {{ theme_ui.theme_toggle('settings', theme_dark) }}
+                </div>
+            </section>
+        </div>
+    </div>
+
+    {#- ---------------------------------------------------------------
+        ACTIVITY: only this account's own actions, so a faculty profile
+        may legitimately show nothing.
+        --------------------------------------------------------------- -#}
+    <div role="tabpanel" id="profile-panel-activity" aria-labelledby="profile-tab-activity" tabindex="-1" aria-selected="false" hidden>
+        <div class="card">
+            <section>
+                {#- A timeline: an icon and a colour per action TYPE make a
+                    deletion findable by scanning. data-tone comes from
+                    AUDIT_ACTION_TONES, so severity is decided in one place.
+                    Days are grouped in app.py: Jinja cannot bucket by a
+                    MANILA date it would have to parse first. -#}
+                {% if activity_days %}
+                    {#- _default (a plain dot) means a new action type
+                        never renders an empty box. -#}
+                    {% set ACTIVITY_ICONS = {
+                        '_default': ["M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"],
+                        'account_created': ["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", "M19 8v6", "M22 11h-6"],
+                        'account_deleted': ["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", "M22 11h-6"],
+                        'account_updated': ["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", "M21.4 12.6a2 2 0 1 1-2.8 2.8L15 19v-3l3.6-3.6a2 2 0 0 1 2.8 0z"],
+                        'deployment_created': ["M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91 0z", "m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z", "M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0", "M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"],
+                        'equipment_added': ["M4 4h16v12H4z", "M2 20h20", "M12 16v4"],
+                        'equipment_deleted': ["M3 6h18", "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6", "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"],
+                        'password_reset': ["M12.586 2.586A2 2 0 0 1 14 2h.01a6 6 0 0 1 5.99 6c0 .81-.16 1.58-.45 2.29L21 12l-2 2-2-2", "m10.5 8.5-8 8A2 2 0 0 0 2 18v3a1 1 0 0 0 1 1h3a2 2 0 0 0 1.5-.5l8-8", "M7 17h.01"],
+                        'software_added': ["M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z", "m3.3 7 8.7 5 8.7-5", "M12 22V12"],
+                        'software_deleted': ["M3 6h18", "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6", "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"],
+                        'software_edited': ["M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z", "m3.3 7 8.7 5 8.7-5"]
+                    } %}
+                    <div class="profile-timeline">
+                        {% for day in activity_days %}
+                            <p class="tl-day">{{ day["day_label"] }}</p>
+                            {% for entry in day["entries"] %}
+                                <div class="tl-row">
+                                    <div class="tl-rail">
+                                        <span class="tl-chip" data-tone="{{ entry['tone'] }}" aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                {%- for d in ACTIVITY_ICONS.get(entry["action_type"], ACTIVITY_ICONS["_default"]) %}<path d="{{ d }}" />{% endfor %}
+                                            </svg>
+                                        </span>
+                                        {#- Hidden on the last row: a
+                                            trailing line implies more,
+                                            and the list stops at five. -#}
+                                        <span class="tl-line"></span>
+                                    </div>
+                                    <div class="tl-body">
+                                        <div class="tl-head">
+                                            <p class="tl-title">{{ entry["action_type"] | replace('_', ' ') | capitalize }}</p>
+                                            <span class="tl-time">{{ entry["time_label"] }}</span>
+                                        </div>
+                                        <p class="tl-detail">{{ entry["details"] or "-" }}</p>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty">
+                        <header>
+                            <h3>No recorded activity yet</h3>
+                            <p>Account changes, software you add or remove, and deployments you start will appear here.</p>
+                        </header>
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Duplicated from admins.html: this page has no shared JS file to
+    // import it from.
+    function hasEmoji(str) {
+        return str.length !== [...str].length || /[\u2600-\u27BF]/.test(str);
+    }
+
+    // ---------- Name ----------
+
+    // First and Last Name only; Middle Initial has its own stricter rule.
+    function validateNamePart(inputId, errorId, label) {
+        var input = document.getElementById(inputId);
+        var errorEl = document.getElementById(errorId);
+        var val = input.value.trim();
+        var error = null;
+        if (!val) {
+            error = label + ' is required.';
+        } else if (val.length < 2) {
+            error = label + ' must be at least 2 characters.';
+        } else if (val.length > 40) {
+            error = label + ' must be 40 characters or fewer.';
+        } else if (hasEmoji(val)) {
+            error = 'Emoji are not allowed.';
+        } else if (!/^[a-zA-Z.'\-\s]+$/.test(val)) {
+            error = 'Use only letters, spaces, periods, apostrophes, or hyphens.';
+        }
+        if (error) {
+            errorEl.textContent = error;
+            errorEl.classList.remove('hidden');
+            input.classList.add('border-danger');
+            input.classList.remove('border-field');
+        } else {
+            errorEl.textContent = '';
+            errorEl.classList.add('hidden');
+            input.classList.remove('border-danger');
+            input.classList.add('border-field');
+        }
+        checkProfileNameValid();
+    }
+
+    function validateProfileFirstName() {
+        validateNamePart('first_name', 'first_name-error', 'First name');
+    }
+
+    function validateProfileLastName() {
+        validateNamePart('last_name', 'last_name-error', 'Last name');
+    }
+
+    // Optional; otherwise 1 or 2 letters, no period: format_full_name()
+    // adds the dot at display time, so a typed one would render "Ma..".
+    function validateProfileMiddleInitial() {
+        var input = document.getElementById('middle_initial');
+        var errorEl = document.getElementById('middle_initial-error');
+        var val = input.value.trim();
+        var error = null;
+        if (val && !/^[a-zA-Z]{1,2}$/.test(val)) {
+            error = 'Middle initial must be 1 or 2 letters.';
+        }
+        if (error) {
+            errorEl.textContent = error;
+            errorEl.classList.remove('hidden');
+            input.classList.add('border-danger');
+            input.classList.remove('border-field');
+        } else {
+            errorEl.textContent = '';
+            errorEl.classList.add('hidden');
+            input.classList.remove('border-danger');
+            input.classList.add('border-field');
+        }
+        checkProfileNameValid();
+    }
+
+    function checkProfileNameValid() {
+        var firstNameVal = document.getElementById('first_name').value;
+        var lastNameVal = document.getElementById('last_name').value;
+        var firstNameErr = document.getElementById('first_name-error').textContent;
+        var lastNameErr = document.getElementById('last_name-error').textContent;
+        var middleInitialErr = document.getElementById('middle_initial-error').textContent;
+        var allOk = !!firstNameVal && !firstNameErr && !!lastNameVal && !lastNameErr && !middleInitialErr;
+        document.getElementById('save-name-btn').disabled = !allOk;
+    }
+
+    // Mirrors validate_username() in app.py. Two rules that disagree would let
+    // a name past the form that the route then bounces, with the field values
+    // already gone.
+    function validateAccountUsername() {
+        var input = document.getElementById('username');
+        var errorEl = document.getElementById('username-error');
+        var val = (input.value || '').trim();
+        var error = null;
+        if (!val) {
+            error = 'Username is required.';
+        } else if (val.length < 3) {
+            error = 'Username must be at least 3 characters.';
+        } else if (val.length > 30) {
+            error = 'Username must be 30 characters or fewer.';
+        } else if (!/^[A-Za-z0-9._-]+$/.test(val)) {
+            error = 'Use only letters, numbers, dot, underscore, or hyphen (no spaces).';
+        }
+        if (error) {
+            errorEl.textContent = error;
+            errorEl.classList.remove('hidden');
+            input.classList.add('border-danger');
+            input.classList.remove('border-field');
+        } else {
+            errorEl.textContent = '';
+            errorEl.classList.add('hidden');
+            input.classList.remove('border-danger');
+            input.classList.add('border-field');
+        }
+        var saveBtn = document.getElementById('save-account-btn');
+        if (saveBtn) {
+            saveBtn.disabled = !!error;
+        }
+    }
+
+    // Put the cursor where the fix is, only when the server flagged a
+    // field.
+    (function () {
+        var failed = document.querySelector('.border-danger');
+        if (failed && typeof failed.focus === 'function') {
+            failed.focus();
+        }
+    })();
+
+    // ---------- Change Password ----------
+    // Always self, so the current password is always required.
+
+    // password-policy.js is deferred, so it has not executed yet when this
+    // script runs its load-time validity check. Returning a truthy string
+    // until then keeps the submit button in its correct initial (disabled)
+    // state rather than throwing on an undefined function.
+    function policyError(val) {
+        return window.passwordPolicyError ? window.passwordPolicyError(val) : 'Password policy not loaded.';
+    }
+
+    // current_password is only a presence check (the server verifies the
+    // hash). new_password's messages are password-policy.js's checklist, so
+    // its error span stays empty and only its border is set.
+    function validatePasswordField(inputId, errorId) {
+        var input = document.getElementById(inputId);
+        var errorEl = document.getElementById(errorId);
+        var val = input.value;
+        var isPolicyField = inputId !== 'current_password';
+        var error = null;
+        if (!isPolicyField && !val) {
+            error = 'Current password is required.';
+        }
+        var invalid = isPolicyField
+            ? (!!val && !!policyError(val))
+            : !!error;
+        if (error) {
+            errorEl.textContent = error;
+            errorEl.classList.remove('hidden');
+        } else {
+            errorEl.textContent = '';
+            errorEl.classList.add('hidden');
+        }
+        if (invalid) {
+            input.classList.add('border-danger');
+            input.classList.remove('border-field');
+        } else {
+            input.classList.remove('border-danger');
+            input.classList.add('border-field');
+        }
+    }
+
+    function validateProfileCurrentPassword() {
+        validatePasswordField('current_password', 'current_password-error');
+        checkProfilePasswordValid();
+    }
+
+    function validateProfileNewPassword() {
+        validatePasswordField('new_password', 'new_password-error');
+        validateProfileConfirmPassword();
+    }
+
+    function validateProfileConfirmPassword() {
+        var newVal = document.getElementById('new_password').value;
+        var confirmInput = document.getElementById('confirm_password');
+        var errorEl = document.getElementById('confirm_password-error');
+        var confirmVal = confirmInput.value;
+        var error = null;
+        if (!confirmVal) {
+            error = 'Please confirm the new password.';
+        } else if (confirmVal !== newVal) {
+            error = 'Passwords do not match.';
+        }
+        if (error) {
+            errorEl.textContent = error;
+            errorEl.classList.remove('hidden');
+            confirmInput.classList.add('border-danger');
+            confirmInput.classList.remove('border-field');
+        } else {
+            errorEl.textContent = '';
+            errorEl.classList.add('hidden');
+            confirmInput.classList.remove('border-danger');
+            confirmInput.classList.add('border-field');
+        }
+        checkProfilePasswordValid();
+    }
+
+    function checkProfilePasswordValid() {
+        var currentVal = document.getElementById('current_password').value;
+        var currentErr = document.getElementById('current_password-error').textContent;
+        var newVal = document.getElementById('new_password').value;
+        // Read the policy directly: the error span is intentionally empty.
+        var newErr = policyError(newVal);
+        var confirmVal = document.getElementById('confirm_password').value;
+        var confirmErr = document.getElementById('confirm_password-error').textContent;
+        var allOk = !!currentVal && !currentErr && !!newVal && !newErr && !!confirmVal && !confirmErr;
+        document.getElementById('change-password-btn').disabled = !allOk;
+    }
+
+    // Run once on load so both submit buttons start in the correct
+    // (disabled) state, matching admins.html's convention.
+    document.getElementById('change-password-btn').disabled = true;
+
+    // ---------- Profile picture ----------
+    // Auto-saves: choosing a file IS the intent, so the form submits as soon
+    // as a valid image is picked. Client-side checks only - the server MUST
+    // re-validate (it does, in save_avatar), because an accept= attribute and
+    // a JS size check are conveniences, not a boundary.
+    (function () {
+        var fileInput = document.getElementById('avatar_file');
+        if (!fileInput) { return; }
+
+        var preview = document.getElementById('avatar-preview');
+        var initials = document.getElementById('avatar-initials');
+        var busy = document.getElementById('avatar-busy');
+        var form = document.getElementById('avatar-form');
+
+        var MAX_BYTES = 2 * 1024 * 1024;
+        var ALLOWED = ['image/png', 'image/jpeg', 'image/webp'];
+        var submitting = false;
+        var objectUrl = null;
+
+        // Errors go through the app's toast system instead of an inline
+        // element: the avatar sits in a flex row sized to an 80px circle, and
+        // anything block-level in there stretches the row.
+        function fail(message) {
+            if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
+            fileInput.value = '';
+            if (typeof showToast === 'function') { showToast(message, 'error'); }
+        }
+
+        fileInput.addEventListener('change', function () {
+            if (submitting) { return; }
+            var file = fileInput.files && fileInput.files[0];
+            if (!file) { return; }
+
+            if (ALLOWED.indexOf(file.type) === -1) {
+                fail('Choose a PNG, JPEG or WebP image.');
+                return;
+            }
+            if (file.size > MAX_BYTES) {
+                fail('That image is larger than 2 MB. Pick a smaller one.');
+                return;
+            }
+
+            // Optimistic preview, so the click visibly did something.
+            objectUrl = URL.createObjectURL(file);
+            preview.src = objectUrl;
+            preview.removeAttribute('hidden');
+            if (initials) { initials.classList.add('hidden'); }
+            if (busy) { busy.classList.remove('hidden'); }
+
+            // Guards a double submit from a second change event firing while
+            // the first POST is still in flight. The flag alone - the input is
+            // deliberately NOT disabled: form.submit() does not fire a submit
+            // event, so nothing would re-enable it, and a disabled input is
+            // not serialised, so the file would never reach the server.
+            submitting = true;
+            form.submit();
+        });
+    })();
+
+    // ---------- Tabs ----------
+    // No Basecoat JS bundle is loaded, so this writes the state its tabs.js
+    // would, and the component's CSS applies unchanged.
+    (function () {
+        var tabsRoot = document.getElementById('profile-tabs');
+        if (!tabsRoot) { return; }
+
+        var tabs = Array.prototype.slice.call(tabsRoot.querySelectorAll('[role="tab"]'));
+
+        function panelFor(tab) {
+            return document.getElementById(tab.getAttribute('aria-controls'));
+        }
+
+        function select(tab, focus) {
+            tabs.forEach(function (candidate) {
+                var isActive = candidate === tab;
+                candidate.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                candidate.setAttribute('tabindex', isActive ? '0' : '-1');
+                var panel = panelFor(candidate);
+                if (!panel) { return; }
+                // The `hidden` ATTRIBUTE, not a .hidden class: app.css is
+                // unlayered and beats Tailwind utilities, so a class here
+                // would be one more cascade fight for no benefit.
+                if (isActive) { panel.removeAttribute('hidden'); }
+                else { panel.setAttribute('hidden', ''); }
+                panel.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
+            if (focus) { tab.focus(); }
+        }
+
+        tabs.forEach(function (tab) {
+            tab.addEventListener('click', function () { select(tab, false); });
+        });
+
+        // Arrow-key roving focus, per the tabs pattern. The rail is
+        // aria-orientation="vertical", so Up/Down are the ones that have
+        // to work; Left/Right stay because the rail folds back to a
+        // horizontal strip below 1024px and the keys should not change
+        // meaning with the viewport.
+        tabsRoot.querySelector('[role="tablist"]').addEventListener('keydown', function (event) {
+            var index = tabs.indexOf(document.activeElement);
+            if (index === -1) { return; }
+            var next = null;
+            if (event.key === 'ArrowDown' || event.key === 'ArrowRight') { next = tabs[(index + 1) % tabs.length]; }
+            else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') { next = tabs[(index - 1 + tabs.length) % tabs.length]; }
+            else if (event.key === 'Home') { next = tabs[0]; }
+            else if (event.key === 'End') { next = tabs[tabs.length - 1]; }
+            if (!next) { return; }
+            event.preventDefault();
+            select(next, true);
+        });
+
+        // A server-side validation failure has to open the tab holding the
+        // field it happened on. Without this a wrong current password paints
+        // a red border on a panel that is not showing, and the page looks
+        // identical to a success.
+        var errorField = {{ (error_field or '') | tojson }};
+        var FIELD_TAB = {
+            'current_password': 'profile-tab-password',
+            'username': 'profile-tab-account',
+            'email': 'profile-tab-account',
+            'account_current_password': 'profile-tab-account'
+        };
+        // ...and the DIALOG, for fields that live in one: otherwise the red
+        // border and message sit in a closed dialog, and the page looks as
+        // if nothing happened.
+        var FIELD_DIALOG = {
+            'username': 'profile-signin-dialog',
+            'email': 'profile-signin-dialog',
+            'account_current_password': 'profile-signin-dialog'
+        };
+        if (errorField && FIELD_TAB[errorField]) {
+            var target = document.getElementById(FIELD_TAB[errorField]);
+            if (target) { select(target, false); }
+        }
+        if (errorField && FIELD_DIALOG[errorField]) {
+            var dialog = document.getElementById(FIELD_DIALOG[errorField]);
+            // showModal() throws if it is somehow already open, and a throw
+            // here would kill the rest of this script.
+            if (dialog && !dialog.open) { dialog.showModal(); }
+            var badField = document.getElementById(errorField);
+            if (badField) { badField.focus(); }
+        }
+    })();
+</script>
+{% endblock %}

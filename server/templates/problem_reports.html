@@ -1,0 +1,911 @@
+{% extends 'base.html' %}
+
+{% block title %}Problem Reports - AppEase{% endblock %}
+{% block page_title %}Problem Reports{% endblock %}
+
+{% block topbar_actions %}
+<div class="flex items-center gap-2">
+    {% if session.get('admin_role') == 'admin' %}
+        <a href="{{ url_for('dashboard') }}" class="rounded-md border border-field bg-canvas px-3 py-2 text-sm font-medium text-label hover:bg-subtle">Back to Dashboard</a>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {% if report_error %}
+        <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ report_error | tojson }}, 'error'); });</script>
+    {% endif %}
+    {% if report_success %}
+        <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ report_success | tojson }}, 'success'); });</script>
+    {% endif %}
+
+    {#- KPI cards stay OUTSIDE the table's print section: whole-table
+        counts would mislead on a sheet of filtered rows. They count the
+        WHOLE main list, so search and paging do not move them; the Archived
+        tab has its own count and shows no cards. -#}
+    {% if report_view != 'archived' %}
+    {% if session.get('admin_role') == 'admin' %}
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section class="skin-card skin-rise card @container/card" style="animation-delay: 0ms; background-image: linear-gradient(to top, color-mix(in oklab, var(--color-primary) 5%, transparent), var(--color-card));">
+            <header>
+                <p class="card-description">Unresolved</p>
+                <h3 class="card-title skin-value text-2xl tabular-nums @[250px]/card:text-3xl" data-countup>{{ report_summary['unresolved'] }}</h3>
+                <span class="card-action">
+                    <span class="flex items-center justify-center rounded-lg bg-subtle px-2 py-2 text-muted">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+                    </span>
+                </span>
+            </header>
+            <footer style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
+                <p class="text-xs text-muted">of {{ report_summary['total'] }} report{{ '' if report_summary['total'] == 1 else 's' }} filed</p>
+            </footer>
+        </section>
+        <section class="skin-card skin-rise card @container/card" style="animation-delay: 70ms; background-image: linear-gradient(to top, color-mix(in oklab, var(--color-primary) 5%, transparent), var(--color-card));">
+            <header>
+                <p class="card-description">Not picked up</p>
+                <h3 class="card-title skin-value text-2xl tabular-nums @[250px]/card:text-3xl" data-countup>{{ report_summary['unopened'] }}</h3>
+                <span class="card-action">
+                    <span class="flex items-center justify-center rounded-lg bg-subtle px-2 py-2 text-muted">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+                    </span>
+                </span>
+            </header>
+            <footer style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
+                <p class="text-xs text-muted">still sitting at Open</p>
+            </footer>
+        </section>
+        <section class="skin-card skin-rise card @container/card" style="animation-delay: 140ms; background-image: linear-gradient(to top, color-mix(in oklab, var(--color-primary) 5%, transparent), var(--color-card));">
+            <header>
+                <p class="card-description">High priority</p>
+                <h3 class="card-title skin-value text-2xl tabular-nums @[250px]/card:text-3xl" data-countup>{{ report_summary['high_priority'] }}</h3>
+                <span class="card-action">
+                    <span class="flex items-center justify-center rounded-lg bg-subtle px-2 py-2 text-muted">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7"></path><path d="M4 14s1.5-1 4-1 4 2 6.5 2 5.5-1 5.5-1V4s-3 1-5.5 1S10.5 3 8 3 4 4 4 4z"></path></svg>
+                    </span>
+                </span>
+            </header>
+            <footer style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
+                <p class="text-xs text-muted">unresolved and marked High</p>
+            </footer>
+        </section>
+        <section class="skin-card skin-rise card @container/card" style="animation-delay: 210ms; background-image: linear-gradient(to top, color-mix(in oklab, var(--color-primary) 5%, transparent), var(--color-card));">
+            <header>
+                <p class="card-description">Unassigned</p>
+                <h3 class="card-title skin-value text-2xl tabular-nums @[250px]/card:text-3xl" data-countup>{{ report_summary['unassigned'] }}</h3>
+                <span class="card-action">
+                    <span class="flex items-center justify-center rounded-lg bg-subtle px-2 py-2 text-muted">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M19 8v6"></path><path d="M22 11h-6"></path></svg>
+                    </span>
+                </span>
+            </header>
+            <footer style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
+                <p class="text-xs text-muted">unresolved with nobody on them</p>
+            </footer>
+        </section>
+    </div>
+    {% else %}
+    {#- The faculty set: they neither assign nor work reports, so the
+        workload cards become Unresolved / Resolved, with Total exactly
+        their sum. Whole-table, not per-person: a report carries a typed
+        reporter NAME, not an account id. -#}
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section class="skin-card skin-rise card @container/card" style="animation-delay: 0ms; background-image: linear-gradient(to top, color-mix(in oklab, var(--color-primary) 5%, transparent), var(--color-card));">
+            <header>
+                <p class="card-description">Total reports</p>
+                <h3 class="card-title skin-value text-2xl tabular-nums @[250px]/card:text-3xl" data-countup>{{ report_summary['total'] }}</h3>
+                <span class="card-action">
+                    <span class="flex items-center justify-center rounded-lg bg-subtle px-2 py-2 text-muted">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1"></rect></svg>
+                    </span>
+                </span>
+            </header>
+            <footer style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
+                <p class="text-xs text-muted">not counting archived</p>
+            </footer>
+        </section>
+        <section class="skin-card skin-rise card @container/card" style="animation-delay: 70ms; background-image: linear-gradient(to top, color-mix(in oklab, var(--color-primary) 5%, transparent), var(--color-card));">
+            <header>
+                <p class="card-description">Unresolved</p>
+                <h3 class="card-title skin-value text-2xl tabular-nums @[250px]/card:text-3xl" data-countup>{{ report_summary['unresolved'] }}</h3>
+                <span class="card-action">
+                    <span class="flex items-center justify-center rounded-lg bg-subtle px-2 py-2 text-muted">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path></svg>
+                    </span>
+                </span>
+            </header>
+            <footer style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
+                <p class="text-xs text-muted">still being worked on</p>
+            </footer>
+        </section>
+        <section class="skin-card skin-rise card @container/card" style="animation-delay: 140ms; background-image: linear-gradient(to top, color-mix(in oklab, var(--color-primary) 5%, transparent), var(--color-card));">
+            <header>
+                <p class="card-description">Resolved</p>
+                <h3 class="card-title skin-value text-2xl tabular-nums @[250px]/card:text-3xl" data-countup>{{ report_summary['finished'] }}</h3>
+                <span class="card-action">
+                    <span class="flex items-center justify-center rounded-lg bg-subtle px-2 py-2 text-muted">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="m9 12 2 2 4-4"></path></svg>
+                    </span>
+                </span>
+            </header>
+            <footer style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
+                <p class="text-xs text-muted">closed, including no fault found</p>
+            </footer>
+        </section>
+        <section class="skin-card skin-rise card @container/card" style="animation-delay: 210ms; background-image: linear-gradient(to top, color-mix(in oklab, var(--color-primary) 5%, transparent), var(--color-card));">
+            <header>
+                <p class="card-description">High priority</p>
+                <h3 class="card-title skin-value text-2xl tabular-nums @[250px]/card:text-3xl" data-countup>{{ report_summary['high_priority'] }}</h3>
+                <span class="card-action">
+                    <span class="flex items-center justify-center rounded-lg bg-subtle px-2 py-2 text-muted">
+                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7"></path><path d="M4 14s1.5-1 4-1 4 2 6.5 2 5.5-1 5.5-1V4s-3 1-5.5 1S10.5 3 8 3 4 4 4 4z"></path></svg>
+                    </span>
+                </span>
+            </header>
+            <footer style="display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;">
+                <p class="text-xs text-muted">unresolved and marked High</p>
+            </footer>
+        </section>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {#- Row selection is for EVERYONE; what the action bar OFFERS is not.
+        The admin bulk routes are separate from the Tasks card's, which
+        narrow to the caller's reports: here that would silently skip ticked
+        rows. Faculty keep the checkbox column for an Export-only bar;
+        without it the footer reads "0 of 48 row(s) selected." forever.
+
+        Priority, Status and Assigned To are read-only cells: the drawer is
+        the one way to change them, so nothing decides between two. -#}
+    <section class="card" data-dt-root data-dt-pagesize="10" data-dt-print
+             data-dt-searchlabel="Search reports..." data-dt-filename="problem-reports"
+             data-dt-xlsx-url="{{ url_for('export_xlsx') }}"
+             data-dt-noun="report" data-dt-idfield="report_ids"
+             data-print-section data-print-title="AppEase - Problem Reports">
+        <header>
+            <h3 class="card-title">Problem Reports</h3>
+            {% if report_view == 'archived' %}
+                <p class="card-description">Reports you've archived.</p>
+            {% else %}
+                <p class="card-description">Every fault reported from the lab.</p>
+            {% endif %}
+            {#- Two links, not a script toggle: each tab is its own server
+                query, so search, paging, print and export only ever hold
+                that tab's rows. -#}
+            <div class="mt-2 flex items-center justify-between gap-2">
+                <div class="flex gap-1" role="tablist" aria-label="Report views">
+                    <a href="{{ url_for('problem_reports_page') }}" class="activity-tab" role="tab"
+                       aria-selected="{{ 'false' if report_view == 'archived' else 'true' }}">Reports ({{ report_summary['total'] }})</a>
+                    <a href="{{ url_for('problem_reports_page', view='archived') }}" class="activity-tab" role="tab"
+                       aria-selected="{{ 'true' if report_view == 'archived' else 'false' }}">Archived ({{ archived_count }})</a>
+                </div>
+                {#- Every archived report, not just the rows on screen: the
+                    count posted back is the tab's own, and the server
+                    refuses if it no longer matches. -#}
+                {% if session.get('admin_role') == 'admin' and report_view == 'archived' and problem_reports %}
+                    <form id="pr-purge-form" method="POST" action="{{ url_for('purge_archived_reports') }}">
+                        <input type="hidden" name="expected_count" value="{{ archived_count }}">
+                        <button type="button" data-pr-purge class="border-tone-bad hover-tone-bad-soft text-tone-bad rounded-md border px-3 py-1.5 text-xs font-medium">Delete all archived</button>
+                    </form>
+                {% endif %}
+            </div>
+        </header>
+        {% if problem_reports %}
+            <section>
+                <div class="dt-toolbar" data-dt-toolbar></div>
+
+                <div class="dt-table-wrap">
+                    <table class="dt-table" data-dt-table data-table>
+                        <thead>
+                            <tr>
+                                <th class="dt-col-select" data-dt-select data-print-skip>
+                                    <input type="checkbox" class="input" aria-label="Select all rows on this page" />
+                                </th>
+                                <th class="dt-col-id" data-dt-sort data-dt-label="ID">ID</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Computer">Computer</th>
+                                <th data-dt-sort data-dt-label="Reported By">Reported By</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Type">Type</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Priority">Priority</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Status">Status</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Assigned To">Assigned To</th>
+                                <th data-dt-sort data-dt-daterange data-dt-label="Reported">Reported</th>
+                                {% if report_view == 'archived' %}
+                                    <th data-dt-sort data-dt-daterange data-dt-label="Archived">Archived</th>
+                                {% endif %}
+                                <th class="dt-col-actions" data-dt-actions data-dt-label="Action" data-print-skip>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for report in problem_reports %}
+                                {#- data-dt-edit and data-dt-delete-url
+                                    are admin-only: the row menu is built
+                                    from them, so no script needs to know
+                                    about roles. An archived report gets
+                                    no Edit; Archive and Restore post with
+                                    no confirm, because both undo. -#}
+                                <tr data-dt-id="{{ report['id'] }}"
+                                    {% if session.get('admin_role') == 'admin' and report_view == 'archived' %}
+                                        data-dt-post-url="{{ url_for('restore_reports') }}"
+                                        data-dt-post-label="Restore"
+                                        data-dt-post-icon="archiveRestore"
+                                    {% elif session.get('admin_role') == 'admin' %}
+                                        data-dt-edit
+                                        data-dt-edit-priority="{{ report['priority'] }}"
+                                        data-dt-edit-status="{{ report['status'] }}"
+                                        data-dt-edit-assigned="{{ report['assigned_to'] or '' }}"
+                                        {% if report['status'] in ['resolved', 'no_fault_found'] %}
+                                            data-dt-post-url="{{ url_for('archive_reports') }}"
+                                            data-dt-post-label="Archive"
+                                            data-dt-post-icon="archive"
+                                        {% endif %}
+                                    {% endif %}
+                                    {% if report['archived_at'] %}
+                                        data-archived="{{ report['archived_at'] | manila }}{% if report['archived_username'] %} by {{ report['archived_first_name'] | format_name(report['archived_middle_initial'], report['archived_last_name']) or report['archived_username'] }}{% endif %}"
+                                    {% endif %}
+                                    data-report-id="{{ report['id'] }}"
+                                    data-computer="{{ report['computer_hostname'] }}"
+                                    data-ip="{{ report['computer_ip'] or '-' }}"
+                                    data-type="{{ report['problem_type'] | capitalize }}"
+                                    data-description="{{ report['description'] }}"
+                                    data-reported="{{ report['reported_at'] | manila }}"
+                                    data-notes="{{ report['notes'] or '' }}"
+                                    data-status="{{ report['status'] | report_status }}"
+                                    data-status-changed="{{ report['status_changed_at'] | manila }}"
+                                    data-priority="{{ report['priority'] | capitalize }}"
+                                    data-assigned="{% if report['assigned_to'] %}{{ report['assigned_first_name'] | format_name(report['assigned_middle_initial'], report['assigned_last_name']) }}{% else %}Unassigned{% endif %}"
+                                    data-resolution="{{ report['resolution_notes'] or '' }}"
+                                    data-source="{{ report['report_source'] or '' }}"
+                                    data-reporter-name="{{ report['reporter_name'] or '' }}"
+                                    data-reporter-role="{{ report['reporter_role'] or '' }}"
+                                    data-reporter-student="{{ report['reporter_student_number'] or '' }}"
+                                    data-reporter-program="{{ report['reporter_program'] or '' }}"
+                                    data-reporter-department="{{ report['reporter_department'] or '' }}"
+                                    data-reporter-section="{{ report['reporter_section'] or '' }}"
+                                    data-reporter-year="{{ report['reporter_year_level'] or '' }}"
+                                    {#- The reporter's address: admins
+                                        only. -#}
+                                    {% if session.get('admin_role') == 'admin' %}data-reporter-email="{{ report['reporter_email'] or '' }}"{% endif %}
+                                    data-photos="{{ report['photo_urls'] | join(' ') }}"
+                                    data-notes-url="{{ url_for('update_problem_report_notes', report_id=report['id']) }}"
+                                    data-print-url="{{ url_for('problem_report_print', report_id=report['id']) }}"
+                                    data-delete-url="{{ url_for('delete_problem_report', report_id=report['id']) }}">
+                                    <td class="dt-col-select" data-print-skip>
+                                        <input type="checkbox" class="input" data-dt-check
+                                               value="{{ report['id'] }}" aria-label="Select report #{{ report['id'] }}" />
+                                    </td>
+                                    <td class="font-mono text-xs" data-sort="{{ report['id'] }}">{{ report["id"] }}</td>
+                                    <td class="font-mono text-xs">{{ report["computer_hostname"] }}</td>
+                                    {#- Older reports store no reporter;
+                                        data-sort keeps "Not recorded" out
+                                        of the sort key. -#}
+                                    <td data-sort="{{ report['reporter_name'] or '' }}">{% if report["reporter_name"] %}{{ report["reporter_name"] }}{% else %}<span class="text-muted">Not recorded</span>{% endif %}</td>
+                                    <td>{{ report["problem_type"] | capitalize }}</td>
+                                    <td data-sort="{% if report['priority'] == 'high' %}0{% elif report['priority'] == 'medium' %}1{% else %}2{% endif %}">
+                                        {% if report['priority'] == 'high' %}
+                                            <span class="dt-pill" data-tone="bad">High</span>
+                                        {% elif report['priority'] == 'low' %}
+                                            <span class="dt-pill" data-tone="good">Low</span>
+                                        {% else %}
+                                            <span class="dt-pill" data-tone="warn">Medium</span>
+                                        {% endif %}
+                                    </td>
+                                    {#- Four tones for six statuses: both
+                                        waiting states are blocked outside
+                                        the lab, so they share one; a
+                                        report that was fine is NOT a
+                                        repair, so it reads neutral. -#}
+                                    <td data-sort="{{ report['status'] | report_status }}">
+                                        {% if report['status'] == 'resolved' %}
+                                            <span class="dt-pill" data-tone="good">Resolved</span>
+                                        {% elif report['status'] == 'no_fault_found' %}
+                                            <span class="dt-pill" data-tone="neutral">No fault found</span>
+                                        {% elif report['status'] == 'in_progress' %}
+                                            <span class="dt-pill" data-tone="warn">In progress</span>
+                                        {% elif report['status'] in ['waiting_for_parts', 'waiting_for_approval'] %}
+                                            <span class="dt-pill" data-tone="info">{{ report['status'] | report_status }}</span>
+                                        {% else %}
+                                            <span class="dt-pill" data-tone="bad">Open</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if report['assigned_to'] %}
+                                            {{ report['assigned_first_name'] | format_name(report['assigned_middle_initial'], report['assigned_last_name']) }}
+                                        {% else %}
+                                            <span class="text-muted">Unassigned</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="font-mono text-xs" data-sort="{{ report['reported_at'] }}">{{ report["reported_at"] | manila }}</td>
+                                    {% if report_view == 'archived' %}
+                                        <td class="font-mono text-xs" data-sort="{{ report['archived_at'] }}">{{ report["archived_at"] | manila }}</td>
+                                    {% endif %}
+                                    <td class="dt-col-actions" data-print-skip>
+                                        <button type="button" class="dt-row-menu" data-dt-rowmenu
+                                                data-dt-details
+                                                {% if session.get('admin_role') == 'admin' and report_view == 'archived' %}data-dt-delete-url="{{ url_for('delete_problem_report', report_id=report['id']) }}"{% endif %}
+                                                aria-haspopup="menu" aria-expanded="false"
+                                                aria-label="Actions for report #{{ report['id'] }}">
+                                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <p class="dt-empty hidden" data-dt-empty>No reports match the current filters.</p>
+                </div>
+
+                <div class="dt-footer" data-dt-footer></div>
+            </section>
+
+            {% if session.get('admin_role') == 'admin' %}
+                {#- The drawer's three fields, each a select that submits
+                    on change: a bulk bar has no Save button, and the
+                    selection is the confirmation. Delete is on the Archived
+                    tab only: a report is deleted from the archive, never
+                    straight from the main list. -#}
+                <div class="dt-actionbar hidden" data-dt-actionbar role="region" aria-label="Bulk actions">
+                    <span class="dt-actionbar-count">
+                        <span data-dt-count>0 selected</span>
+                        <button type="button" class="dt-actionbar-clear" data-dt-clear aria-label="Clear selection">&times;</button>
+                    </span>
+                    <span class="dt-actionbar-sep" aria-hidden="true"></span>
+                    {% if report_view == 'archived' %}
+                    <form method="POST" action="{{ url_for('restore_reports') }}" data-dt-form>
+                        <button type="submit" class="dt-btn">Restore</button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('bulk_update_reports_status') }}" data-dt-form>
+                        <label class="sr-only" for="pr-bulk-status">Set status</label>
+                        <select class="input dt-bulk-select" id="pr-bulk-status" name="status"
+                                onchange="if (this.value) { this.form.submit(); }">
+                            <option value="">Set status...</option>
+                            {% for option in allowed_report_statuses %}
+                                <option value="{{ option }}">{{ option | report_status }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    <form method="POST" action="{{ url_for('bulk_update_reports_priority') }}" data-dt-form>
+                        <label class="sr-only" for="pr-bulk-priority">Set priority</label>
+                        <select class="input dt-bulk-select" id="pr-bulk-priority" name="priority"
+                                onchange="if (this.value) { this.form.submit(); }">
+                            <option value="">Set priority...</option>
+                            {% for option in allowed_priorities %}
+                                <option value="{{ option }}">{{ option | capitalize }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    <form method="POST" action="{{ url_for('bulk_assign_reports') }}" data-dt-form>
+                        <label class="sr-only" for="pr-bulk-assign">Assign to</label>
+                        {#- "__none__" rather than "" for Unassign, because ""
+                            is the placeholder that means "you have not picked
+                            anything yet". The route unassigns only on
+                            "__none__"; any other non-numeric value is
+                            refused as an invalid technician. -#}
+                        <select class="input dt-bulk-select" id="pr-bulk-assign" name="assigned_to"
+                                onchange="if (this.value) { this.form.submit(); }">
+                            <option value="">Assign to...</option>
+                            <option value="__none__">Unassigned</option>
+                            {% for tech in technicians %}
+                                <option value="{{ tech['id'] }}">{{ tech['first_name'] | format_name(tech['middle_initial'], tech['last_name']) }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    <form method="POST" action="{{ url_for('archive_reports') }}" data-dt-form>
+                        <button type="submit" class="dt-btn">Archive</button>
+                    </form>
+                    {% endif %}
+                    <button type="button" class="dt-btn" data-dt-export>Export</button>
+                    {% if report_view == 'archived' %}
+                    <form method="POST" action="{{ url_for('bulk_delete_reports') }}" data-dt-form>
+                        <button type="submit" class="dt-btn" data-tone="danger" data-dt-act="delete">Delete</button>
+                    </form>
+                    {% endif %}
+                </div>
+            {% else %}
+                {#- Export only: a CSV built in the browser, so no admin
+                    bulk route is reachable from here. Those routes are
+                    @admin_required as well, because hiding a button is not
+                    a permission. -#}
+                <div class="dt-actionbar hidden" data-dt-actionbar role="region" aria-label="Bulk actions">
+                    <span class="dt-actionbar-count">
+                        <span data-dt-count>0 selected</span>
+                        <button type="button" class="dt-actionbar-clear" data-dt-clear aria-label="Clear selection">&times;</button>
+                    </span>
+                    <span class="dt-actionbar-sep" aria-hidden="true"></span>
+                    <button type="button" class="dt-btn" data-dt-export>Export</button>
+                </div>
+            {% endif %}
+
+            {% if session.get('admin_role') == 'admin' %}
+                <dialog id="pr-confirm-delete" class="alert-dialog" data-dt-confirm="delete"
+                        aria-labelledby="pr-confirm-delete-title" aria-describedby="pr-confirm-delete-desc">
+                    <div>
+                        <header>
+                            <figure><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></figure>
+                            <h2 id="pr-confirm-delete-title">Delete <span data-dt-confirm-count>this report</span>?</h2>
+                            <p id="pr-confirm-delete-desc">This removes the report, its notes and any attached photos. It cannot be undone.</p>
+                        </header>
+                        <footer>
+                            <button type="button" class="btn" data-variant="outline" data-dt-confirm-cancel>Cancel</button>
+                            <button type="button" class="btn" data-variant="destructive" data-dt-confirm-ok>Delete</button>
+                        </footer>
+                    </div>
+                </dialog>
+                {% if report_view == 'archived' %}
+                    <dialog id="pr-confirm-purge" class="alert-dialog" data-dt-confirm="purge"
+                            aria-labelledby="pr-confirm-purge-title" aria-describedby="pr-confirm-purge-desc">
+                        <div>
+                            <header>
+                                <figure><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></figure>
+                                <h2 id="pr-confirm-purge-title">Delete all archived reports?</h2>
+                                <p id="pr-confirm-purge-desc">Permanently delete {% if archived_count == 1 %}the 1 archived report and its photos{% else %}all {{ archived_count }} archived reports and their photos{% endif %}? This cannot be undone.</p>
+                            </header>
+                            <footer>
+                                <button type="button" class="btn" data-variant="outline" data-dt-confirm-cancel>Cancel</button>
+                                <button type="button" class="btn" data-variant="destructive" data-dt-confirm-ok>Delete</button>
+                            </footer>
+                        </div>
+                    </dialog>
+                {% endif %}
+            {% endif %}
+        {% else %}
+            <section>
+                {% if status_filter or priority_filter %}
+                    <p class="text-sm text-muted">No problem reports match the selected filters.</p>
+                {% elif report_view == 'archived' %}
+                    <p class="text-sm text-muted">No archived reports.</p>
+                {% else %}
+                    <p class="text-sm text-muted">No problem reports yet.</p>
+                {% endif %}
+            </section>
+        {% endif %}
+    </section>
+</div>
+
+{#- The Details panel, filled by openDetailsModal() from the row. -#}
+
+<div id="details-modal-overlay" class="deploy-backdrop fixed inset-0 z-50 hidden flex items-center justify-center">
+    <div id="details-modal-panel" class="w-full max-w-md rounded-xl border border-line bg-canvas p-6 shadow-raised">
+        <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold tracking-tight text-ink">Report #<span id="details-report-id"></span></h3>
+            <div class="flex items-center gap-2">
+                {#- An <a> to a new tab, so this panel and the list behind
+                    it are still here afterwards. -#}
+                <a id="details-print-link" href="#" target="_blank" rel="noopener"
+                   class="rounded-md border border-field bg-canvas px-3 py-1.5 text-xs font-medium text-label hover:bg-subtle">Print</a>
+                <button type="button" onclick="closeDetailsModal()" aria-label="Close" class="rounded-md px-2 py-1 text-label hover:bg-subtle">&times;</button>
+            </div>
+        </div>
+        <div id="details-main-body">
+            <div class="mt-4 space-y-2 text-sm">
+                <p><span class="font-medium text-ink">Computer:</span> <span id="details-computer" class="font-mono text-xs text-body"></span></p>
+                <p><span class="font-medium text-ink">IP Address:</span> <span id="details-ip" class="font-mono text-xs text-body"></span></p>
+                <p><span class="font-medium text-ink">Submitted via:</span> <span id="details-source"></span> <span id="details-source-note" class="text-xs text-muted"></span></p>
+                <p><span class="font-medium text-ink">Type:</span> <span id="details-type" class="text-body"></span></p>
+                <p><span class="font-medium text-ink">Status:</span> <span id="details-status" class="text-body"></span><span id="details-status-changed" class="text-muted"></span></p>
+                <p><span class="font-medium text-ink">Priority:</span> <span id="details-priority" class="text-body"></span></p>
+                <p><span class="font-medium text-ink">Assigned to:</span> <span id="details-assigned" class="text-body"></span></p>
+                <p><span class="font-medium text-ink">Reported:</span> <span id="details-reported" class="font-mono text-xs text-body"></span></p>
+                <p><span class="font-medium text-ink">Reported by:</span> <span id="details-reporter" class="text-body"></span></p>
+                <p id="details-reporter-student-row" class="hidden"><span class="font-medium text-ink">Student details:</span> <span id="details-reporter-student" class="text-body"></span></p>
+                {% if session.get('admin_role') == 'admin' %}
+                    <p id="details-reporter-email-row" class="hidden"><span class="font-medium text-ink">Email:</span> <span id="details-reporter-email" class="text-body"></span></p>
+                {% endif %}
+                <div>
+                    <p class="font-medium text-ink">Description:</p>
+                    <p id="details-description" class="mt-1 text-body"></p>
+                </div>
+                {#- Thumbnails are sized inline, not with a utility, so a
+                    stale tailwind.css cannot leave them at full width. -#}
+                <div id="details-photos-row" class="hidden">
+                    <p class="font-medium text-ink">Photos:</p>
+                    <div id="details-photos" class="mt-1 flex flex-wrap gap-2"></div>
+                </div>
+                <p id="details-archived-row" class="hidden"><span class="font-medium text-ink">Archived:</span> <span id="details-archived" class="text-body"></span></p>
+            </div>
+            <div class="mt-4 border-t border-rule">
+                {#- On the Archived tab the report is read-only for
+                    everybody, admins included. -#}
+                {% if session.get('admin_role') == 'admin' and report_view != 'archived' %}
+                    {#- Notes is a scratchpad; "What was done" is its own
+                        field because it is the record that matters when
+                        the same machine breaks next semester. -#}
+                    <form id="details-notes-form" method="post" action="">
+                        <label for="details-notes" class="mb-1 mt-4 block text-sm font-medium text-ink">Notes</label>
+                        <textarea id="details-notes" name="notes" rows="4" maxlength="1000" class="w-full rounded-lg border border-field px-3 py-2 text-sm focus:border-primary focus:outline-hidden focus:ring-2 focus:ring-primary/30"></textarea>
+                        <label for="details-resolution" class="mb-1 mt-4 block text-sm font-medium text-ink">What was done</label>
+                        <textarea id="details-resolution" name="resolution_notes" rows="3" maxlength="1000" placeholder="Replaced the keyboard with a spare from storage." class="w-full rounded-lg border border-field px-3 py-2 text-sm focus:border-primary focus:outline-hidden focus:ring-2 focus:ring-primary/30"></textarea>
+                        <button type="submit" class="mt-3 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90">Save Notes</button>
+                    </form>
+                {% else %}
+                    <p class="mt-4 text-sm font-medium text-ink">Notes</p>
+                    <p id="details-notes-readonly" class="mt-1 text-sm text-body"></p>
+                    <p class="mt-4 text-sm font-medium text-ink">What was done</p>
+                    <p id="details-resolution-readonly" class="mt-1 text-sm text-body"></p>
+                    {% if session.get('admin_role') == 'admin' %}
+                        <div class="mt-3 flex items-center gap-2">
+                            <form id="details-restore-form" method="post" action="{{ url_for('restore_reports') }}">
+                                <input type="hidden" name="report_ids" id="details-restore-id" value="">
+                                <button type="submit" class="rounded-md border border-field bg-canvas px-3 py-1.5 text-xs font-medium text-label hover:bg-subtle">Restore</button>
+                            </form>
+                            <form id="details-delete-form" method="post" action="">
+                                <button type="button" onclick="requestDetailsDelete()" class="border-tone-bad hover-tone-bad-soft text-tone-bad rounded-md border px-3 py-1.5 text-xs font-medium">Delete Report</button>
+                            </form>
+                        </div>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script defer src="{{ url_for('static', filename='js/data-table.js') }}"></script>
+<script>
+    (function () {
+        var overlay = document.getElementById('details-modal-overlay');
+        var panel = document.getElementById('details-modal-panel');
+        if (!overlay || !panel) {
+            return;
+        }
+
+        var closeTimer = null;
+
+        // The SAME confirm dialog as the row menu and the bulk bar, so
+        // deleting looks alike everywhere.
+        window.requestDetailsDelete = function () {
+            var deleteForm = document.getElementById('details-delete-form');
+            var table = document.querySelector('[data-dt-root]');
+            if (!deleteForm || !table) {
+                return;
+            }
+            closeDetailsModal();
+            table.dispatchEvent(new CustomEvent('dt:request-confirm', {
+                detail: { kind: 'delete', count: 1, form: deleteForm }
+            }));
+        };
+
+        // "Delete all archived" opens the table's purge dialog the same way.
+        var purgeButton = document.querySelector('[data-pr-purge]');
+        if (purgeButton) {
+            purgeButton.addEventListener('click', function () {
+                var table = document.querySelector('[data-dt-root]');
+                if (table) {
+                    table.dispatchEvent(new CustomEvent('dt:request-confirm', {
+                        detail: { kind: 'purge', count: 1, form: purgeButton.form }
+                    }));
+                }
+            });
+        }
+
+        window.openDetailsModal = function (button) {
+            document.getElementById('details-report-id').textContent = button.dataset.reportId;
+            document.getElementById('details-computer').textContent = button.dataset.computer;
+            document.getElementById('details-ip').textContent = button.dataset.ip;
+
+            /* Tones are deliberately NOT a good/bad axis: the token
+             * classifies where a report came from and never gated whether
+             * one is accepted, so 'direct' must not look like a warning.
+             * Only 'sticker' is positive, being hard to fake: a valid token
+             * needs the server secret. */
+            var SOURCE_LABELS = {
+                sticker: { text: 'QR sticker', tone: 'good',
+                           note: 'scanned a printed label on the computer' },
+                code: { text: 'Sticker code', tone: 'good',
+                        note: 'typed the code printed on the computer' },
+                lan: { text: 'Lab network', tone: 'info',
+                       note: 'submitted from a registered lab computer' },
+                direct: { text: 'Direct link', tone: 'neutral',
+                          note: 'opened the form without a sticker' }
+            };
+            var sourceKey = (button.dataset.source || '').toLowerCase();
+            /* Older reports hold NULL. They are not 'direct' - nobody
+             * asked - so they say so rather than claim a value. */
+            var source = SOURCE_LABELS[sourceKey] ||
+                { text: 'Not recorded', tone: 'neutral',
+                  note: 'filed before this was tracked' };
+            var sourceEl = document.getElementById('details-source');
+            sourceEl.className = 'dt-pill';
+            sourceEl.setAttribute('data-tone', source.tone);
+            sourceEl.textContent = source.text;
+            document.getElementById('details-source-note').textContent = source.note;
+            document.getElementById('details-type').textContent = button.dataset.type;
+            document.getElementById('details-reported').textContent = button.dataset.reported;
+            document.getElementById('details-status').textContent = button.dataset.status || '-';
+            document.getElementById('details-priority').textContent = button.dataset.priority || '-';
+            document.getElementById('details-assigned').textContent = button.dataset.assigned || 'Unassigned';
+
+            // A NULL renders "-"; rather than "Status changed: -", the line
+            // disappears.
+            var changed = button.dataset.statusChanged || '';
+            document.getElementById('details-status-changed').textContent =
+                (changed && changed !== '-') ? '  \u00b7  changed ' + changed : '';
+            document.getElementById('details-description').textContent = button.dataset.description;
+
+            var role = button.dataset.reporterRole || '';
+            var roleLabel = role ? role.charAt(0).toUpperCase() + role.slice(1) : '';
+            var reporterName = button.dataset.reporterName || '';
+            document.getElementById('details-reporter').textContent = reporterName
+                ? (roleLabel ? reporterName + ' (' + roleLabel + ')' : reporterName)
+                : 'Not recorded';
+
+            // Student number / section / year only exist for a student report.
+            var studentRow = document.getElementById('details-reporter-student-row');
+            var studentBits = [];
+            if (button.dataset.reporterStudent) studentBits.push(button.dataset.reporterStudent);
+            if (button.dataset.reporterProgram) studentBits.push(button.dataset.reporterProgram);
+            // Same row as the student trio: it answers the same question,
+            // who is this and where are they from.
+            if (button.dataset.reporterDepartment) studentBits.push(button.dataset.reporterDepartment);
+            if (button.dataset.reporterSection) studentBits.push(button.dataset.reporterSection);
+            if (button.dataset.reporterYear) studentBits.push(button.dataset.reporterYear);
+            if (studentBits.length) {
+                document.getElementById('details-reporter-student').textContent = studentBits.join(' \u00b7 ');
+                studentRow.classList.remove('hidden');
+            } else {
+                studentRow.classList.add('hidden');
+            }
+
+            // Admins only; the row is not rendered for faculty.
+            var emailRow = document.getElementById('details-reporter-email-row');
+            if (emailRow) {
+                var reporterEmail = button.dataset.reporterEmail || '';
+                document.getElementById('details-reporter-email').textContent = reporterEmail;
+                emailRow.classList.toggle('hidden', !reporterEmail);
+            }
+
+            // Built with createElement, never innerHTML - and rebuilt from
+            // scratch each open so a previous report's photos cannot linger.
+            var photoRow = document.getElementById('details-photos-row');
+            var photoBox = document.getElementById('details-photos');
+            var photos = (button.dataset.photos || '').split(' ').filter(function (url) { return !!url; });
+            photoBox.textContent = '';
+            if (photos.length) {
+                for (var p = 0; p < photos.length; p++) {
+                    var link = document.createElement('a');
+                    link.href = photos[p];
+                    link.target = '_blank';
+                    link.rel = 'noopener';
+                    var thumb = document.createElement('img');
+                    thumb.src = photos[p];
+                    thumb.alt = 'Photo attached to this report';
+                    thumb.className = 'rounded-lg border border-line';
+                    thumb.style.width = '72px';
+                    thumb.style.height = '72px';
+                    thumb.style.objectFit = 'cover';
+                    link.appendChild(thumb);
+                    photoBox.appendChild(link);
+                }
+                photoRow.classList.remove('hidden');
+            } else {
+                photoRow.classList.add('hidden');
+            }
+
+            var notesForm = document.getElementById('details-notes-form');
+            if (notesForm) {
+                notesForm.action = button.dataset.notesUrl;
+                document.getElementById('details-notes').value = button.dataset.notes;
+                document.getElementById('details-resolution').value = button.dataset.resolution || '';
+            }
+            var notesReadonly = document.getElementById('details-notes-readonly');
+            if (notesReadonly) {
+                notesReadonly.textContent = button.dataset.notes || 'No notes yet.';
+            }
+            var resolutionReadonly = document.getElementById('details-resolution-readonly');
+            if (resolutionReadonly) {
+                resolutionReadonly.textContent = button.dataset.resolution || 'Not recorded yet.';
+            }
+            var printLink = document.getElementById('details-print-link');
+            if (printLink) {
+                printLink.href = button.dataset.printUrl || '#';
+            }
+            var deleteForm = document.getElementById('details-delete-form');
+            if (deleteForm) {
+                deleteForm.action = button.dataset.deleteUrl;
+            }
+            var restoreId = document.getElementById('details-restore-id');
+            if (restoreId) {
+                restoreId.value = button.dataset.reportId;
+            }
+            // Only rows on the Archived tab carry data-archived.
+            var archivedRow = document.getElementById('details-archived-row');
+            if (archivedRow) {
+                var archived = button.dataset.archived || '';
+                document.getElementById('details-archived').textContent = archived;
+                archivedRow.classList.toggle('hidden', !archived);
+            }
+
+            if (closeTimer !== null) {
+                window.clearTimeout(closeTimer);
+                closeTimer = null;
+            }
+            overlay.classList.remove('hidden');
+            void overlay.offsetWidth;
+            overlay.classList.add('modal-open');
+        };
+
+        window.closeDetailsModal = function () {
+            overlay.classList.remove('modal-open');
+            if (closeTimer !== null) {
+                window.clearTimeout(closeTimer);
+            }
+            closeTimer = window.setTimeout(function () {
+                closeTimer = null;
+                if (!overlay.classList.contains('modal-open')) {
+                    overlay.classList.add('hidden');
+                }
+            }, 140);
+        };
+
+        overlay.addEventListener('click', function (event) {
+            if (event.target === overlay) {
+                closeDetailsModal();
+            }
+        });
+
+        // Only while this panel is open: a native dialog handles its own
+        // Esc.
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && overlay.classList.contains('modal-open')) {
+                closeDetailsModal();
+            }
+        });
+    })();
+</script>
+
+{#- NOT admin-gated: faculty have Details buttons too, so the deep link is
+    theirs as well. The admin-only block starts below it. -#}
+<script>
+    // Two deep links, deliberately separate:
+    //   ?open=<id>   - Profile's link. Opens that report's Details panel.
+    //   ?locate=<id> - the Tasks card's link. Highlights the row WITHOUT
+    //                  opening Details: the user has just read the same
+    //                  fields there, and the panel would cover the row.
+    // Works whatever page the row is on: data-table.js hides rows rather
+    // than removing them. A report not in the list says so.
+    (function () {
+        var opening = {{ open_report_id | tojson }};
+        var locating = {{ locate_report_id | tojson }};
+        var wanted = opening || locating;
+        if (!wanted) {
+            return;
+        }
+        document.addEventListener('DOMContentLoaded', function () {
+            var button = document.querySelector('[data-report-id="' + wanted + '"]');
+            if (!button) {
+                if (typeof window.showToast === 'function') {
+                    window.showToast('Report #' + wanted + ' is not in the current list.', 'error');
+                }
+                return;
+            }
+
+            // offsetParent is null when data-table.js has the row hidden by
+            // search or paging; scrolling to it would silently do nothing.
+            var row = button.closest('tr');
+            if (row && row.offsetParent !== null) {
+                row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                row.classList.add('report-row-linked');
+                // Removed once the animation ends so re-linking to the same
+                // row later can re-trigger it.
+                window.setTimeout(function () { row.classList.remove('report-row-linked'); }, 2400);
+            } else if (row && typeof window.showToast === 'function') {
+                window.showToast('Report #' + wanted + ' is on another page of the table.', 'info');
+            }
+
+            if (opening && typeof window.openDetailsModal === 'function') {
+                window.openDetailsModal(button);
+            }
+        });
+    })();
+</script>
+
+{#- Edit drawer, admin only. All three fields save through one route, so
+    a failure cannot leave a half-applied report. -#}
+{% if session.get('admin_role') == 'admin' %}
+<dialog id="pr-edit-drawer" class="drawer" data-side="right"
+        aria-labelledby="pr-edit-title" aria-describedby="pr-edit-description">
+    <article>
+        <header>
+            <h2 id="pr-edit-title">Update report <span id="pr-edit-number"></span></h2>
+            <p id="pr-edit-description">Priority, status and assignee.</p>
+        </header>
+        <section class="px-4">
+            <form method="POST" id="pr-edit-form" class="sw-edit-fields">
+                <div role="group" class="field">
+                    <label for="pr-edit-priority">Priority</label>
+                    {#- Native selects: the Basecoat select needs a JS
+                        bundle this page does not load. Options come from
+                        the constants the route validates against. -#}
+                    <select class="input" id="pr-edit-priority" name="priority" required>
+                        {% for option in allowed_priorities %}
+                            <option value="{{ option }}">{{ option | capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div role="group" class="field">
+                    <label for="pr-edit-status">Status</label>
+                    <select class="input" id="pr-edit-status" name="status" required>
+                        {% for option in allowed_report_statuses %}
+                            <option value="{{ option }}">{{ option | report_status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div role="group" class="field">
+                    <label for="pr-edit-assigned">Assigned to</label>
+                    <select class="input" id="pr-edit-assigned" name="assigned_to">
+                        <option value="">Unassigned</option>
+                        {% for tech in technicians %}
+                            <option value="{{ tech['id'] }}">{{ tech['first_name'] | format_name(tech['middle_initial'], tech['last_name']) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </section>
+        <footer>
+            <button type="button" class="btn" data-variant="outline" data-pr-drawer-close>Cancel</button>
+            <button type="submit" form="pr-edit-form" class="btn">Save</button>
+        </footer>
+    </article>
+</dialog>
+{% endif %}
+
+<script>
+    /* Row-menu wiring. The drawer's close is hand-written: Basecoat's
+     * drawer bundle is not loaded here. */
+    (function () {
+        document.addEventListener('dt:details', function (event) {
+            var row = event.detail && event.detail.row;
+            if (row && typeof window.openDetailsModal === 'function') {
+                window.openDetailsModal(row);
+            }
+        });
+
+        var drawer = document.getElementById('pr-edit-drawer');
+        var form = document.getElementById('pr-edit-form');
+        if (!drawer || !form) { return; }
+
+        var number = document.getElementById('pr-edit-number');
+        var priority = document.getElementById('pr-edit-priority');
+        var status = document.getElementById('pr-edit-status');
+        var assigned = document.getElementById('pr-edit-assigned');
+        var EDIT_URL = "{{ url_for('update_problem_report_fields', report_id=0) }}";
+
+        function closeDrawer() {
+            if (!drawer.open) { return; }
+            drawer.setAttribute('data-closing', '');
+            // 500ms matches the drawer transition in basecoat.css.
+            window.setTimeout(function () {
+                drawer.removeAttribute('data-closing');
+                drawer.close();
+            }, 500);
+        }
+
+        document.addEventListener('dt:edit', function (event) {
+            var row = event.detail && event.detail.row;
+            if (!row) { return; }
+            var id = event.detail.id;
+            // The /0/ SEGMENT is the placeholder, not a trailing zero.
+            form.action = EDIT_URL.replace('/0/', '/' + encodeURIComponent(id) + '/');
+            number.textContent = '#' + id;
+            // The row carries the RAW values (data-dt-edit-*), not the
+            // rendered labels in the cells: a <select> matches on option
+            // value, and "In progress" is not "in_progress".
+            priority.value = row.getAttribute('data-dt-edit-priority') || 'medium';
+            status.value = row.getAttribute('data-dt-edit-status') || 'open';
+            assigned.value = row.getAttribute('data-dt-edit-assigned') || '';
+            drawer.showModal();
+            priority.focus();
+        });
+
+        drawer.addEventListener('click', function (event) {
+            if (event.target.closest('[data-pr-drawer-close]')) { closeDrawer(); return; }
+            if (event.target === drawer) { closeDrawer(); }
+        });
+
+        drawer.addEventListener('cancel', function (event) {
+            event.preventDefault();
+            closeDrawer();
+        });
+    })();
+</script>
+{% endblock %}

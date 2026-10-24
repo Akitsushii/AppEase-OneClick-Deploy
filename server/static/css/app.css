@@ -1,0 +1,4816 @@
+/* AppEase — local font declarations.
+   Self-hosted; nothing here loads from an external CDN.
+
+   Outfit is the UI face: one variable file for the whole 100-900 weight
+   axis, latin subset (U+00A0-00FF, so accented names render). SIL Open
+   Font License 1.1.
+
+   InterVariable.woff2 is unreferenced, kept so going back to Inter is a
+   two-line change. */
+
+@font-face {
+    font-family: 'Outfit';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('../fonts/Outfit-Variable.woff2') format('woff2');
+}
+
+/* ====================================================================
+   DARK MODE - TOKENS
+   ====================================================================
+
+   Every AppEase utility compiles to a var() reference (.bg-canvas is
+   var(--color-canvas)), so re-pointing a token re-points every utility
+   at once, and build-css.bat never needs to run for it.
+
+   These beat @theme: it compiles to :root inside @layer theme, app.css
+   is unlayered, and an unlayered rule beats every layered rule
+   regardless of specificity - no !important needed.
+
+   html.dark, not .dark: one specificity step above :root, so the dark
+   block wins on specificity rather than source order, and it is the
+   same hook Basecoat's own dark variant (&:is(html.dark *)) uses.
+
+   The class is stamped SERVER-SIDE by inject_theme() in app.py; there is
+   no JavaScript in the paint path. */
+
+:root {
+    /* The focus ring is the primary: 4.50:1 on white and 4.09:1 on the
+       #f3f4f6 subtle fill, and the same hue as everything else that
+       signals interaction. */
+    --color-ring: #4173d8;
+    /* Roles for the .dt-* family. */
+    --color-line-strong: #d1d5db;      /* dashed borders, checkbox outline */
+    --color-row-selected: #eff6ff;     /* selected table row */
+    --color-invert: #111827;           /* solid dark button fill */
+    --color-invert-foreground: #ffffff;
+    --color-invert-hover: #1f2937;
+    --color-ring-soft: rgba(65, 115, 216, 0.18);
+    --shadow-pop: 0 10px 24px rgba(16, 24, 40, 0.12);
+
+    /* SEVERITY TONES - the one source for every component that reads
+       AUDIT_ACTION_TONES: .dt-pill, .dt-row-btn, .tl-*, .activity-* and
+       .notif-sev. */
+    --tone-good-bg: #dcfce7;    --tone-good-fg: #166534;
+    --tone-info-bg: #dbeafe;    --tone-info-fg: #1d4ed8;
+    --tone-warn-bg: #fef3c7;    --tone-warn-fg: #92400e;
+    --tone-warn-border: #fde68a;
+    --tone-bad-bg: #fee2e2;     --tone-bad-fg: #b91c1c;
+    --tone-bad-border: #fecaca; --tone-bad-soft: #fef2f2;
+    --tone-neutral-bg: #f3f4f6; --tone-neutral-fg: #6b7280;
+
+    /* ---- More roles ----------------------------------------------- */
+    /* Gray-600, a third near-duplicate of the neutral-tone foreground
+       (.dt-pill uses #6b7280; .tl-chip and .activity-avatar use this).
+       Unifying would visibly lighten those chips in light mode, which is
+       a design call of its own. */
+    --color-ink-soft: #4b5563;
+    /* The softest warn step, one above --tone-warn-bg, mirroring
+       --tone-bad-soft. */
+    --tone-warn-soft: #fffbeb;
+    /* Modal backdrop and the avatar's uploading scrim. Same colour family,
+       two opacities. */
+    --color-backdrop: rgba(9, 12, 20, 0.55);
+    --color-scrim: rgba(9, 12, 20, 0.45);
+    --shadow-dropdown: 0 6px 16px rgba(0, 0, 0, 0.1);
+    --shadow-dialog: 0 10px 38px -10px rgba(9, 12, 20, 0.35),
+                     0 10px 20px -15px rgba(9, 12, 20, 0.2);
+
+    /* ---- Solid destructive fill ------------------------------------- */
+    /* Tailwind compiles no destructive utility in this build. SAME VALUE
+       IN BOTH THEMES: a saturated red reads as destructive on either
+       ground, and the white label clears 4.83:1 on it either way. */
+    --color-danger-solid: #dc2626;
+    --color-danger-solid-foreground: #ffffff;
+
+    /* The lift under a task row while it is being dragged. Its own token
+       rather than --shadow-raised: the first layer is 0.06 alpha here, not
+       0.05, and quietly rounding one onto the other is how two shadows
+       become one that suits neither. */
+    --shadow-drag: 0 4px 6px -2px rgba(16, 24, 40, 0.06),
+                   0 12px 16px -4px rgba(16, 24, 40, 0.10);
+
+    /* The primary used as TEXT, not as a fill. Its own token rather than
+       a second job for --color-ring: a focus ring and a text colour serving
+       one value drift the moment either needs to move on its own.
+
+       Identical to --color-primary in light, so nothing there changes. */
+    --color-primary-text: #4173d8;
+
+    /* The soft step for good and info, as bad and warn have: .rs-chip and
+       Deploy's type badges use it. */
+    --tone-good-soft: #f0fdf4;
+    --tone-info-soft: #eff6ff;
+
+    /* The info tone's border step, as warn and bad have. blue-200 as a
+       hex; Tailwind v4's border-blue-200 computes one unit away. */
+    --tone-info-border: #bfdbfe;
+
+    /* The warning accent border on the deploy dialogs. SAME IN BOTH
+       THEMES: a saturated amber reads as "look at this" without reading
+       as an error, and it is a border rather than text. */
+    --color-warn-strong: #f59e0b;
+
+    /* The three squares of the AppEase mark, lightest to darkest. A ramp,
+       not three arbitrary greys: each reads stronger than the last against
+       the sidebar (1.38 / 2.94 / 7.44 on #f3f4f6). */
+    --logo-sq-1: #cfd2d8;
+    --logo-sq-2: #8b8f99;
+    --logo-sq-3: #4a4f5c;
+}
+
+html.dark {
+    /* ---- Supplied palette (Basecoat theme editor) ------------------ */
+    --color-primary: #4173d8;
+    /* WHITE, not the palette's #121113, which scored 4.19:1 as the label
+       on every primary button. White is 4.4981:1 and matches light mode -
+       still 0.002 under 4.5. Darkening the primary to #4072d7 would clear
+       it at 4.5591, but that is the brand blue light mode reads too, so it
+       is a separate decision. */
+    --color-primary-foreground: #ffffff;
+
+    --color-background: #121113;
+    --color-foreground: #c1c1c1;
+    --color-card: #121212;
+    --color-card-foreground: #c1c1c1;
+    --color-popover: #121113;
+    --color-popover-foreground: #c1c1c1;
+    --color-accent: #333333;
+    --color-accent-foreground: #c1c1c1;
+    --color-muted-foreground: #888888;
+    --color-border: #222222;
+    --color-input: #222222;
+
+    /* ---- The three values derived here, not supplied ---------------- */
+
+    /* DESTRUCTIVE. Light's #b91c1c scores 2.91:1 on #121113. #ef4444
+       makes 5.00 on the base but only 3.36 on accent #333333, which is
+       where destructive text sits (a hovered Delete row). #f87171 clears
+       4.5 on all four: 6.81 base, 6.77 card, 5.75 input, 4.57 accent.
+       Basecoat's destructive button colours itself from this alone; no
+       --color-destructive-foreground token exists here. */
+    --color-destructive: #f87171;
+
+    /* RING. Straight primary would be the literal reading of "ring from
+       the primary blue", but a focus ring has to be visible ON AN INPUT,
+       and inputs are #222222 where #4173d8 manages only 3.54:1. #7ea6f0
+       is that same blue lightened - it is already in this file, used by
+       the auth panel for exactly this reason - and makes 7.71 on base,
+       6.52 on the input fill. */
+    --color-ring: #7ea6f0;
+    --color-sidebar-ring: #7ea6f0;
+
+    /* SECONDARY. The editor emitted secondary equal to primary, which
+       would render every low-emphasis button as a second call to action.
+       The supplied neutral ramp is #121212 / #222222 / #333333; muted and
+       accent already own the last two, so secondary takes the step
+       between them. #1e2128 (the auth panel) was the other candidate and
+       was rejected: it is 1.01:1 against border #222222, so a bordered
+       secondary button would have had an invisible edge. */
+    --color-secondary: #2a2a2a;
+    --color-secondary-foreground: #c1c1c1;
+
+    /* ---- AppEase's own tokens -------------------------------------- */
+    /* What the templates use (text-ink, bg-canvas, text-muted,
+       border-line...), so these flip the markup. As in light: one
+       foreground for headings and body, one dimmer grey for the rest. */
+    --color-ink: #c1c1c1;
+    --color-body: #c1c1c1;
+    --color-label: #c1c1c1;
+    --color-muted: #888888;
+    /* Disabled / offline, and the de-emphasised report ids on the Tasks
+       card - not a disabled control, so they must still read. The dark
+       counterpart of light's cool blue-grey #9ca3af: the cast separates
+       it from the neutral #888888 muted, as a dark ground leaves too
+       little lightness room. 5.00 canvas / 4.97 sidebar / 4.62 subtle. */
+    --color-faint: #7d8490;
+
+    --color-field: #222222;
+    --color-line: #222222;
+    /* In-table dividers. In light, rule (#eef2f7) is SUBTLER than line
+       (#e5e7eb) - closer to the surface. Dark mirrors that: a step
+       between the canvas and the border rather than the border itself, or
+       every table row would be separated as hard as the card edge. */
+    --color-rule: #1b1b1b;
+    --color-canvas: #121113;
+    /* Hover and thead fill. Light runs canvas #ffffff -> subtle #f3f4f6
+       -> line #e5e7eb as three distinct steps; dark mirrors it as #121113
+       -> #1a1a1a -> #222222. Deliberately NOT #222222, which would make a
+       table header indistinguishable from the border under it. */
+    --color-subtle: #1a1a1a;
+
+    /* Invalid-field border, in step with destructive as light mode keeps
+       --color-danger with its red. --color-online needs no dark value:
+       it already clears 5.77:1 on the card. */
+    --color-danger: #f87171;
+
+    /* ---- Sidebar --------------------------------------------------- */
+    --color-sidebar: #121212;
+    --color-sidebar-foreground: #c1c1c1;
+    --color-sidebar-text: #c1c1c1;
+    --color-sidebar-border: #222222;
+    --color-sidebar-accent: #333333;
+    --color-sidebar-accent-foreground: #c1c1c1;
+    --color-sidebar-muted: #888888;
+    /* The 11px MAIN / ACCOUNT / REPORTS / SYSTEM labels need the lift;
+       #9ca3af in light too. */
+    --color-sidebar-label: #7d8490;
+    /* Not supplied. Light mode lifts the hover a hair off the sidebar
+       fill (#f3f4f6 -> #f4f5f8); this is the same move in the other
+       direction, and it matches --color-subtle so hover means one thing
+       app-wide. */
+    --color-sidebar-hover: #1a1a1a;
+    --color-sidebar-primary: #4173d8;
+    --color-sidebar-primary-foreground: #ffffff;
+
+    /* ---- .dt-* roles ----------------------------------------------- */
+    --color-line-strong: #333333;
+    --color-row-selected: #16213a;
+    --color-invert: #c1c1c1;
+    --color-invert-foreground: #121113;
+    --color-invert-hover: #a8a8a8;
+    --color-ring-soft: rgba(126, 166, 240, 0.28);
+    /* A page-coloured shadow is invisible on a dark ground; this is the
+       same geometry against black instead. */
+    --shadow-pop: 0 10px 24px rgba(0, 0, 0, 0.55);
+
+    /* Severity tones. Every fg/bg pair here clears 4.5:1 - good 8.89,
+       warn 9.58, info 6.35, bad 6.19, neutral 4.91. (Light mode's own
+       neutral pair is 4.39, i.e. the dark set is the stricter one.) */
+    --tone-good-bg: #10291c;    --tone-good-fg: #4ade80;
+    --tone-info-bg: #14243f;    --tone-info-fg: #7ea6f0;
+    --tone-warn-bg: #2b2008;    --tone-warn-fg: #fbbf24;
+    --tone-warn-border: #4a3a12;
+    --tone-bad-bg: #2c1517;     --tone-bad-fg: #f87171;
+    --tone-bad-border: #4a2326; --tone-bad-soft: #1f1113;
+    --tone-neutral-bg: #1a1a1a; --tone-neutral-fg: #888888;
+
+    /* ---- More roles ----------------------------------------------- */
+    --color-ink-soft: #c1c1c1;
+    /* 10.27:1 with --tone-warn-fg. */
+    --tone-warn-soft: #241a06;
+    /* A page-coloured scrim does almost nothing over a dark page, so both
+       of these go to black and gain opacity to keep the same separation. */
+    --color-backdrop: rgba(0, 0, 0, 0.72);
+    --color-scrim: rgba(0, 0, 0, 0.62);
+    --shadow-dropdown: 0 6px 16px rgba(0, 0, 0, 0.55);
+    --shadow-dialog: 0 10px 38px -10px rgba(0, 0, 0, 0.7),
+                     0 10px 20px -15px rgba(0, 0, 0, 0.5);
+
+    /* ---- Solid destructive fill ------------------------------------- */
+    /* Deliberately identical to light - see the note there. At 3.90:1
+       against #121113 the button still separates from the page, which is
+       what a non-text UI element needs. */
+    --color-danger-solid: #dc2626;
+    --color-danger-solid-foreground: #ffffff;
+
+    --color-warn-strong: #f59e0b;
+    /* Black rather than the page's blue-black, like every other dark
+       shadow here - a page-coloured shadow does nothing over a dark
+       ground. */
+    --shadow-drag: 0 4px 6px -2px rgba(0, 0, 0, 0.5),
+                   0 12px 16px -4px rgba(0, 0, 0, 0.6);
+
+    /* #4173d8 is 4.19:1 on the canvas and 3.87:1 on the subtle fill, so
+       the selected tab label and the active notification filter both fail
+       as TEXT while the same blue is fine as a button FILL. This is the
+       smallest lift that clears 4.5 on all three dark grounds - 5.58
+       canvas / 5.55 card / 5.16 subtle - so it still reads as the brand
+       blue rather than a pale tint. */
+    --color-primary-text: #5b8ae6;
+
+    /* 9.86:1 and 7.06:1 with their own foregrounds. */
+    --tone-good-soft: #0c1f14;
+    --tone-info-soft: #101b2e;
+
+    /* Solved against the info soft step rather than picked: 1.46:1, the
+       mean of the warn (1.55) and bad (1.36) borders against their own
+       soft steps, in the info background's hue. A border, so it only has
+       to separate, not to be read. */
+    --tone-info-border: #1f3760;
+
+    /* Solved to the SAME contrast ramp against the dark sidebar #121212 -
+       1.38 / 2.94 / 7.44 - rather than reused. The light values on a dark
+       ground invert to 12.37 / 5.79 / 2.29: the mark still renders, but its
+       emphasis runs backwards and the third square all but vanishes. Each
+       square keeps its own channel mix, so the blue-grey cast is unchanged. */
+    --logo-sq-1: #2d2e2f;
+    --logo-sq-2: #5d5f66;
+    --logo-sq-3: #99a3be;
+}
+
+/* The root canvas for the gap before this file arrives is inlined in
+   base.html's <head>, as that gap is the wait for this file. Change one,
+   change the other. */
+
+/* ---- The theme toggle's icon swap ------------------------------------
+   Basecoat does this with `dark:` utilities, none of which is compiled,
+   so plain CSS avoids a rebuild. Both rules sit on classes nothing else
+   uses, scoped under .theme-toggle, so their `display` cannot defeat
+   .hidden anywhere. */
+.theme-toggle .theme-icon-sun {
+    display: none;
+}
+
+.theme-toggle .theme-icon-moon {
+    display: inline-flex;
+}
+
+html.dark .theme-toggle .theme-icon-sun {
+    display: inline-flex;
+}
+
+html.dark .theme-toggle .theme-icon-moon {
+    display: none;
+}
+
+/* Press feedback on discrete user actions.
+   Scoped to real <button> elements on purpose: CSS `transform` is ignored on
+   inline elements, and forcing a display value onto the anchor-styled buttons
+   would outrank Tailwind's .flex on the sidebar nav links and break their icon
+   layout. Only `transform` is transitioned here, so the colour transitions
+   Tailwind already applies to those links are left untouched. */
+button {
+    transition: transform 120ms ease;
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+/* Honour the OS-level "reduce motion" setting. Written once: it also
+   covers the dropdown fade and the dialog fades. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Bell dropdown fade. .hidden is display:none, which cannot be
+   transitioned, so notifications.js removes .hidden one frame BEFORE
+   adding .notif-panel-open. Nothing here sets `display`. The 140ms must
+   stay in sync with the closeTimer in notifications.js. */
+#notif-panel {
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 140ms ease, transform 140ms ease;
+}
+
+#notif-panel.notif-panel-open {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Dialog fades for the overlays listed below. .hidden cannot be
+   transitioned, so each inline script keeps .modal-open as the source of
+   truth and re-adds .hidden only after the fade. Nothing here sets
+   `display`. The 140ms must stay in sync with every inline close timer. */
+#batch-modal-overlay,
+#deploy-progress-overlay,
+#detect-dialog-overlay,
+#duplicate-dialog-overlay,
+#details-modal-overlay,
+#delete-confirm-overlay,
+#report-confirm-overlay {
+    opacity: 0;
+    transition: opacity 140ms ease;
+}
+
+/* THE BACKDROP for EVERY modal in the app, despite the name; a new
+   overlay gets this class. One place styles them all, with no rebuild.
+   Tailwind v4 has no bg-opacity-*, so `bg-black bg-opacity-50` would
+   paint solid black.
+
+   Never sets `display`: .hidden is toggled on these same elements. */
+.deploy-backdrop {
+    background-color: var(--color-backdrop);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+#batch-modal-overlay.modal-open,
+#deploy-progress-overlay.modal-open,
+#detect-dialog-overlay.modal-open,
+#duplicate-dialog-overlay.modal-open,
+#details-modal-overlay.modal-open,
+#delete-confirm-overlay.modal-open,
+#report-confirm-overlay.modal-open {
+    opacity: 1;
+}
+
+#batch-modal-panel,
+#deploy-progress-panel,
+#detect-dialog-card,
+#duplicate-dialog-card,
+#details-modal-panel,
+#delete-confirm-panel,
+#report-confirm-panel {
+    transform: scale(0.97);
+    transition: transform 140ms ease;
+}
+
+#batch-modal-overlay.modal-open #batch-modal-panel,
+#deploy-progress-overlay.modal-open #deploy-progress-panel,
+#detect-dialog-overlay.modal-open #detect-dialog-card,
+#duplicate-dialog-overlay.modal-open #duplicate-dialog-card,
+#details-modal-overlay.modal-open #details-modal-panel,
+#delete-confirm-overlay.modal-open #delete-confirm-panel,
+#report-confirm-overlay.modal-open #report-confirm-panel {
+    transform: scale(1);
+}
+
+/* Sticky, so the title and bell stay pinned while long tables scroll.
+   z-index 30 stays below the notification panel and modals (50). */
+.app-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+}
+
+/* Collapsible sidebar - toggled by #sidebar-toggle, state saved in a cookie
+   (NOT localStorage) and applied pre-paint by the inline <head> script so the
+   collapsed state never flashes on load. All hooks, no Tailwind rebuild.
+   Width/margin animate because collapsing is a discrete user action. */
+#app-sidebar { transition: width 200ms ease; }
+.app-content { transition: margin-left 200ms ease; }
+.sb-icon { display: none; }
+
+html.sidebar-collapsed #app-sidebar { width: 3rem; }
+/* Fixed brand-head heights: sizing from the text varied between 53px and
+   66.5px with font rendering. Collapsed (56px) matches the topbar.
+
+   Expanded and collapsed have ENTIRELY SEPARATE rule sets, with no
+   shared base rule: a bare .brand-head display:flex reaches the
+   collapsed state and shrinks the icon div to a start-pinned flex item,
+   undoing its centring. */
+html:not(.sidebar-collapsed) .brand-head {
+    height: 66.5px;
+    display: flex;
+    align-items: center;
+    padding: 12px 8px 8px 16px;
+}
+html.sidebar-collapsed .brand-head {
+    height: 56px;
+    padding-top: 16px;
+    padding-bottom: 16px;
+    padding-left: 0;
+    padding-right: 0;
+}
+/* Collapsed, the tile's px-4 plus the button's px-2 is 48px - the whole
+   3rem rail - which pushes the 32px avatar past the edge. Both zeroed,
+   with the button's content centred. */
+html.sidebar-collapsed #admin-tile-root {
+    padding-left: 0;
+    padding-right: 0;
+}
+html.sidebar-collapsed #admin-tile {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* Basecoat nav-item styling, ported rather than using its .sidebar class:
+   that also sets `.sidebar nav { position: fixed; width: ... }`, which
+   would fight the aside's own width on a different element, with no
+   cascade contest to settle it. */
+#app-sidebar nav li > a,
+#app-sidebar nav li > button {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    border-radius: var(--radius-lg);
+    padding: 0.375rem 0.75rem;
+    text-align: left;
+    font-size: 0.875rem;
+    line-height: 1.125rem;
+    color: var(--color-sidebar-foreground);
+    outline: none;
+    transition: background-color 140ms ease, color 140ms ease;
+}
+/* Hover and active use the theme's own sidebar-accent: a plain, neutral
+   highlight rather than a colour tint. */
+#app-sidebar nav li > a:hover,
+#app-sidebar nav li > button:hover {
+    background-color: var(--color-sidebar-accent);
+    color: var(--color-sidebar-accent-foreground);
+}
+#app-sidebar nav li > a:focus-visible,
+#app-sidebar nav li > button:focus-visible {
+    box-shadow: 0 0 0 2px var(--color-sidebar), 0 0 0 4px var(--color-primary);
+}
+#app-sidebar nav li > a[data-active=true],
+#app-sidebar nav li > button[data-active=true] {
+    background-color: var(--color-sidebar-primary);
+    color: var(--color-sidebar-primary-foreground);
+    font-weight: 400;
+}
+/* The icon inherits the label's colour via currentColor: the whole pill
+   carries the accent, not just the icon. */
+#app-sidebar nav li > a > svg,
+#app-sidebar nav li > button > svg {
+    flex-shrink: 0;
+}
+/* The toggle buttons put the chevron after a flex-1 label, so it pins to
+   the right edge with no justify-between wrapper. */
+#app-sidebar nav li > button .sb-label:not(:last-child) {
+    flex: 1;
+}
+/* :not(.sb-label) - the two subnav <ul>s (#dashboard-subnav, #admin-subnav)
+   carry sb-label too, and #app-sidebar gives this rule higher specificity
+   than html.sidebar-collapsed .sb-label{display:none}, which would
+   otherwise win by ID alone and keep the subnav visible while collapsed.
+   Excluding them here is enough - block is a fine fallback display for a
+   plain <ul>, no flex needed for that case. */
+#app-sidebar nav ul:not(.sb-label) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+#app-sidebar nav > section > div[role=group] {
+    margin-top: 1.5rem;
+}
+#app-sidebar nav > section > div[role=group]:first-child {
+    margin-top: 0;
+}
+/* Collapsed, the group labels are hidden, so the 1.5rem gap sized to sit
+   under them reads as random spacing. One smaller, even gap instead. */
+html.sidebar-collapsed #app-sidebar nav > section > div[role=group] {
+    margin-top: 0.5rem;
+}
+/* Nested sub-nav: indented with a rule line, so the hierarchy reads at a
+   glance. */
+#app-sidebar nav ul ul {
+    margin-top: 0.125rem;
+    margin-left: 1.125rem;
+    padding-left: 1rem;
+    border-left: 1px solid var(--color-sidebar-border);
+}
+#app-sidebar nav ul ul li > a {
+    padding: 0.375rem 0.75rem;
+    color: var(--color-sidebar-muted);
+    font-size: 0.875rem;
+}
+#app-sidebar nav ul ul li > a:hover {
+    background-color: var(--color-sidebar-accent);
+    color: var(--color-sidebar-accent-foreground);
+}
+#app-sidebar nav ul ul li > a[data-active=true] {
+    background-color: var(--color-sidebar-primary);
+    color: var(--color-sidebar-primary-foreground);
+    font-weight: 400;
+}
+/* Native <button> keeps its browser chrome (border, background) unless
+   explicitly reset - Tailwind's own preflight only strips background and
+   radius, not border, since it assumes a border utility will be added.
+   The subnav toggles never got one, so without this they show a plain
+   grey outset border on top of everything above. */
+#app-sidebar nav li > button {
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+}
+html.sidebar-collapsed .app-content { margin-left: 3rem; }
+html.sidebar-collapsed .sb-label { display: none; }
+html.sidebar-collapsed .sb-icon { display: inline-flex; }
+/* Chart rows and tracks. Colour and opacity only - no display property, so
+   these cannot collide with a Tailwind display utility. */
+.chart-track { fill: #eef2f7; }
+.chart-zero { fill: #d1d5db; }
+.chart-row-bg { fill: transparent; transition: fill 120ms ease; }
+.chart-row:hover .chart-row-bg,
+.chart-row:focus-within .chart-row-bg { fill: #f8fafc; }
+.chart-chevron { stroke: #9ca3af; opacity: 0; transition: opacity 120ms ease; }
+.chart-row:hover .chart-chevron,
+.chart-row:focus-within .chart-chevron { opacity: 1; }
+@media print {
+    .chart-row-bg { fill: transparent; }
+    .chart-chevron { opacity: 0; }
+}
+
+/* In the collapsed rail the mark sits centred like the nav items. Its
+   padding lives in the html.sidebar-collapsed .brand-head rule above. */
+html.sidebar-collapsed #app-sidebar .brand-head > div {
+    justify-content: center;
+}
+
+html.sidebar-collapsed #app-sidebar nav a,
+html.sidebar-collapsed #app-sidebar nav button {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* Collapsed-rail account menu. Expanded, #admin-menu is w-full and opens
+   upward above the tile. Collapsed, the rail is 3rem so w-full computes to
+   ~36px and every label wraps. Here it becomes a fixed-width flyout sitting
+   just outside the rail, aligned to the bottom of the tile, matching the
+   collapsed nav tooltips. !important because the element carries its
+   geometry as an inline style. No `display` here - cascade trap safe. */
+html.sidebar-collapsed #app-sidebar #admin-menu {
+    left: 100% !important;
+    right: auto !important;
+    bottom: 0 !important;
+    width: 208px !important;
+    margin-left: 16px !important;
+    margin-bottom: 0 !important;
+}
+
+/* Collapsed-rail tooltips (expanded shows real labels). Pure CSS via
+   data-tip; z-index 60 clears the sticky topbar (30) and modals (50). */
+html.sidebar-collapsed #app-sidebar [data-tip] { position: relative; }
+html.sidebar-collapsed #app-sidebar [data-tip]::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin-left: 10px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: #111827;
+    color: #ffffff;
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+    z-index: 60;
+}
+html.sidebar-collapsed #app-sidebar [data-tip]:hover::after { opacity: 1; }
+
+/* Hover-peek swaps sidebar-collapsed for sidebar-peek, so every collapsed
+   rule above stops applying and the rail looks pinned open. These two
+   rules are the ONLY difference, and neither sets `display`.
+
+   The page must NOT move while peeking: this selector outranks the
+   .app-content margin utility, so the content stays at the 3rem rail. */
+html.sidebar-peek .app-content { margin-left: 3rem; }
+/* The sticky topbar is z-index 30 and #app-sidebar has none, so the
+   topbar would paint OVER the peeked rail. 40 clears it and stays under
+   the modals at 50; the shadow makes the rail read as floating. */
+html.sidebar-peek #app-sidebar {
+    z-index: 40;
+    box-shadow: 0 8px 24px -6px rgb(16 24 40 / 0.18);
+}
+
+/* Table refinement - row hover comes from the hover:bg-subtle class on each
+   row; this adds a little row height so dense tables breathe a bit more. */
+[data-table] tbody td { padding-top: 0.7rem; padding-bottom: 0.7rem; }
+
+/* Toasts: corner slide-in-and-fade cards. Plain classes, so no rebuild.
+   toasts.js owns AUTO_DISMISS_MS and FADE_MS; FADE_MS (220ms) must stay
+   in sync with the transitions here. */
+#toast-container {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 70;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 320px;
+    max-width: calc(100vw - 32px);
+    pointer-events: none;
+}
+
+.toast {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+    border-radius: 10px;
+    border: 1px solid #e8eaf0;
+    background: #ffffff;
+    padding: 12px 14px;
+    font-size: 14px;
+    line-height: 1.4;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    pointer-events: auto;
+    opacity: 0;
+    transform: translateX(16px);
+    transition: opacity 220ms ease, transform 220ms ease;
+    /* Per-type accent, overridden by .toast-<type>: the card stays plain
+       and the colour lives in the icon chip and the bottom bar only. */
+    --toast-accent: #6b7280;
+    --toast-chip: #f3f4f6;
+}
+
+/* Bottom accent bar. A pseudo-element rather than a border-bottom so it sits
+   inside the rounded corners (overflow: hidden above) and does not shift the
+   card's height when the type changes. */
+.toast::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: var(--toast-accent);
+}
+
+.toast-show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast-hide {
+    opacity: 0;
+    transform: translateX(16px);
+}
+
+.toast-success { --toast-accent: #16a34a; --toast-chip: #f0fdf4; }
+.toast-info    { --toast-accent: #2f68dd; --toast-chip: #eef3fd; }
+.toast-warning { --toast-accent: #d97706; --toast-chip: #fffbeb; }
+.toast-error   { --toast-accent: #dc2626; --toast-chip: #fef2f2; }
+
+/* Icon chip. Sets display, but it is only ever built by toasts.js and is never
+   combined with Tailwind's .hidden, so the app.css cascade trap does not bite
+   here. Do not add `hidden` to this element in markup. */
+.toast-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: var(--toast-chip);
+    color: var(--toast-accent);
+}
+
+.toast-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+.toast-message {
+    flex: 1;
+    color: #1f2937;
+    font-weight: 500;
+}
+
+.toast-close {
+    flex-shrink: 0;
+    border: none;
+    background: none;
+    padding: 0;
+    line-height: 1;
+    font-size: 16px;
+    cursor: pointer;
+    color: #9ca3af;
+    opacity: 0.8;
+}
+
+.toast-close:hover {
+    opacity: 1;
+}
+
+/* Profile dropdown: the bell dropdown's fade, with its own class so the
+   two cannot interfere. The 140ms must stay in sync with the close timer
+   in base.html. */
+#profile-panel {
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 140ms ease, transform 140ms ease;
+}
+
+#profile-panel.profile-panel-open {
+    opacity: 1;
+    transform: translateY(0);
+}
+/* Password visibility toggle, injected into every password input by
+   static/js/password-toggle.js. Plain classes, so no rebuild. */
+.pw-wrap {
+    position: relative;
+    display: block;
+}
+
+/* Keeps typed text from running underneath the button. */
+.pw-wrap > input {
+    padding-right: 2.4rem;
+}
+
+.pw-toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    height: 100%;
+    align-items: center;
+    padding: 0 0.6rem;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--color-muted);
+}
+
+.pw-toggle:hover {
+    color: var(--color-ink-soft);
+}
+
+.pw-icon {
+    height: 1.05rem;
+    width: 1.05rem;
+}
+
+/* A Priority <select> tinted by data-priority-value. No template uses it
+   now: Problem Reports edits priority in its drawer.
+
+   The tint is on the closed control because per-option styling is
+   ignored (notably by Windows Chrome). (0,1,1) outranks .border-field,
+   while .focus\:border-primary:focus (0,2,0) still wins on focus. */
+select[data-priority-value] {
+    font-weight: 500;
+}
+
+select[data-priority-value="high"] {
+    border-color: #fecaca;
+    background-color: #fef2f2;
+    color: #b91c1c;
+}
+
+select[data-priority-value="medium"] {
+    border-color: #fde68a;
+    background-color: #fffbeb;
+    color: #92400e;
+}
+
+select[data-priority-value="low"] {
+    border-color: #bbf7d0;
+    background-color: #f0fdf4;
+    color: #166534;
+}
+
+/* Keep the opened list neutral: some browsers inherit the control's
+   tinted text into the popup. */
+select[data-priority-value] option {
+    background-color: #ffffff;
+    color: #111827;
+    font-weight: 400;
+}
+
+/* Live password checklist, injected under any data-password-policy field
+   by static/js/password-policy.js. Plain classes, so no rebuild. */
+.pw-rules {
+    margin: 0.4rem 0 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pw-rule {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--color-muted);
+}
+
+.pw-rule::before {
+    content: "\25CB";
+    font-size: 11px;
+    line-height: 1;
+}
+
+.pw-rule-ok {
+    color: var(--tone-good-fg);
+}
+
+.pw-rule-ok::before {
+    content: "\2713";
+}
+/* Deployment progress motion. The reduced-motion block near the top of
+   this file matches *, so every animation here switches off with it.
+
+   Everything is driven by real job state; nothing implies progress that
+   has not happened. Pending rows are still, because a pending job is not
+   doing anything yet. The moving parts: the two bar segments, a pulse on
+   rows actually installing, a one-shot flash on a real status change,
+   and a heartbeat per poll so "nothing changed yet" reads as live. */
+
+.deploy-bar-track {
+    position: relative;
+}
+
+/* Two stacked segments: finished jobs, and behind it finished plus
+   installing. The second is the real in-flight count, not padding. */
+.deploy-bar-seg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0;
+    transition: width 400ms ease;
+}
+
+.deploy-bar-seg-active {
+    opacity: 0.4;
+}
+
+/* Moving stripes, on ONLY while at least one job is actually installing.
+   They mean "work in flight", so the JS removes the class the moment the
+   in_progress count hits zero. */
+.deploy-bar-active {
+    background-image: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.45) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.45) 50%,
+        rgba(255, 255, 255, 0.45) 75%,
+        transparent 75%
+    );
+    background-size: 0.9rem 0.9rem;
+    animation: deploy-bar-stripes 850ms linear infinite;
+}
+
+@keyframes deploy-bar-stripes {
+    from { background-position: 0.9rem 0; }
+    to   { background-position: 0 0; }
+}
+
+/* Status dot inside each pill. Static on every status; pulsing only on
+   Installing, which is the one status that is genuinely mid-action. */
+.deploy-dot {
+    display: inline-block;
+    height: 0.4rem;
+    width: 0.4rem;
+    margin-right: 0.35rem;
+    border-radius: 9999px;
+    background: currentColor;
+    vertical-align: middle;
+}
+
+.deploy-dot-live {
+    animation: deploy-dot-pulse 1200ms ease-in-out infinite;
+}
+
+@keyframes deploy-dot-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.3; transform: scale(0.7); }
+}
+
+/* One-shot flash when a row's status actually changes - the main
+   "something moved" cue, as rows finish seconds apart. Tinted by outcome
+   so the change reads before you look at the pill. */
+.deploy-row-changed {
+    animation: deploy-row-flash-neutral 1100ms ease-out;
+}
+
+.deploy-row-changed-good {
+    animation: deploy-row-flash-good 1100ms ease-out;
+}
+
+.deploy-row-changed-bad {
+    animation: deploy-row-flash-bad 1100ms ease-out;
+}
+
+@keyframes deploy-row-flash-neutral {
+    from { background-color: #eff6ff; }
+    to   { background-color: transparent; }
+}
+
+@keyframes deploy-row-flash-good {
+    from { background-color: #f0fdf4; }
+    to   { background-color: transparent; }
+}
+
+@keyframes deploy-row-flash-bad {
+    from { background-color: #fef2f2; }
+    to   { background-color: transparent; }
+}
+
+/* Rows arrive as the first poll result lands. The stagger is capped in JS so
+   a 36-job batch does not take four seconds to finish appearing. */
+.deploy-row-enter {
+    animation: deploy-row-in 260ms ease-out both;
+}
+
+@keyframes deploy-row-in {
+    from { opacity: 0; transform: translateY(-3px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Heartbeat beside the hint line: a spinner the JS hides once polling
+   stops or pauses, so an absent spinner always means not polling.
+   Tailwind's animate-spin is not proven to be compiled, so the rotation
+   is defined here. */
+.deploy-heartbeat {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 0.875rem;
+    width: 0.875rem;
+    flex-shrink: 0;
+    color: var(--color-muted, #9ca3af);
+}
+
+.deploy-heartbeat svg {
+    height: 0.875rem;
+    width: 0.875rem;
+    animation: deploy-spin 900ms linear infinite;
+}
+
+/* Compound selector on purpose: app.css loads AFTER tailwind.css, so a bare
+   .deploy-heartbeat-off (0,1,0) would lose to .deploy-heartbeat's display
+   above. Tailwind's own .hidden would lose for the same reason. */
+.deploy-heartbeat.deploy-heartbeat-off {
+    display: none;
+}
+
+/* One poll landed: a colour pulse, NOT a transform - the element is
+   continuously rotating, so animating transform here would fight the spin. */
+.deploy-heartbeat.deploy-heartbeat-tick {
+    animation: deploy-heartbeat-pulse 900ms ease-out;
+}
+
+@keyframes deploy-heartbeat-pulse {
+    0%   { color: var(--color-primary-text, #3b6ef6); }
+    100% { color: var(--color-muted, #9ca3af); }
+}
+
+@keyframes deploy-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .deploy-heartbeat svg { animation: none; }
+}
+
+/* Small bump when the completed count actually changes. */
+.deploy-count-bump {
+    animation: deploy-count-pop 320ms ease-out;
+}
+
+@keyframes deploy-count-pop {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* Chocolatey package suggestions. Plain classes, so no rebuild.
+
+   CASCADE NOTE: none of these sets `display`, which would beat .hidden.
+   The panel is toggled with .hidden alone; `position: absolute` already
+   blockifies it. */
+/* No `display`: toggled with .hidden. The markup carries `block`. */
+.choco-field {
+    position: relative;
+}
+
+.choco-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    max-height: 18rem;
+    overflow-y: auto;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 8px;
+    background: var(--color-canvas);
+    box-shadow: var(--shadow-dropdown);
+    /* Below the sticky topbar (30), modals (50) and toasts (70), above
+       ordinary page content. */
+    z-index: 20;
+}
+
+.choco-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    border-bottom: 1px solid var(--color-subtle);
+    background: none;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.choco-option:last-child {
+    border-bottom: none;
+}
+
+/* One highlight class for both hover and keyboard focus, so arrowing
+   through the list looks identical to mousing over it. */
+.choco-option:hover,
+.choco-option-active {
+    background: var(--color-subtle);
+}
+
+.choco-option-id {
+    display: block;
+    font-weight: 600;
+    color: var(--color-ink);
+    word-break: break-all;
+}
+
+.choco-option-meta {
+    display: block;
+    color: var(--color-muted);
+    font-size: 12px;
+    margin-top: 1px;
+}
+
+.choco-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 6px;
+    border-radius: 9999px;
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 16px;
+    vertical-align: middle;
+    background: var(--tone-warn-soft);
+    color: var(--tone-warn-fg);
+    border: 1px solid var(--tone-warn-border);
+}
+
+.choco-note {
+    display: block;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--color-muted);
+}
+
+/* Loading placeholder for the Chocolatey suggestion panel.
+
+   Geometry mirrors .choco-option exactly - same padding, same divider - so
+   the panel is the height it will be once results land and the list does not
+   resize under the pointer.
+
+   Deliberately NOT .choco-option: chocoHighlight() collects that class by
+   name, so a skeleton wearing it would become arrow-key navigable. */
+.choco-skeleton-row {
+    display: block;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-subtle);
+}
+
+.choco-skeleton-row:last-child {
+    border-bottom: none;
+}
+
+/* THE --color-muted COLLISION: Basecoat's .skeleton fills with
+   var(--color-muted), which in AppEase is the TEXT grey, so its bars
+   render near-charcoal. Patched here, not by repointing the token that
+   `text-muted` means in ~60 places. */
+.choco-results .skeleton {
+    background-color: var(--color-line);
+}
+
+/* The bars are aria-hidden, so this carries the loading wording for
+   screen readers without a second visible indicator. */
+.choco-skeleton-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Status line under the field. Colour only - .hidden and Tailwind's
+   `block` control visibility, exactly as they do for #name-error. */
+.choco-status-ok {
+    color: var(--tone-good-fg);
+}
+
+.choco-status-warn {
+    color: var(--tone-warn-fg);
+}
+
+.choco-status-muted {
+    color: var(--color-muted);
+}
+/* Native <select> chrome: the app's own chevron instead of the OS arrow.
+
+   `select` alone (0,0,1) would lose padding-right to .px-3 (0,1,0);
+   :not([multiple]) raises it to (0,1,1) and skips multi-selects, which
+   have no arrow. No `display` and no `background-color`, so the
+   attribute-keyed Priority tints still win. */
+select:not([multiple]) {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.625rem center;
+    background-size: 14px 14px;
+    padding-right: 2rem;
+}
+select:not([multiple])::-ms-expand { display: none; }
+
+/* NATIVE DROPDOWN LISTS IN DARK MODE. Basecoat colours option lists from
+   the colour scheme only for a select in a .field or carrying .select.
+   Any other select (the bulk bars, the Software Library Category) gets
+   pale dark-mode text over a WHITE list in Chrome: 1.05:1.
+
+   Canvas / CanvasText for every native select, dark mode only. (0,1,3)
+   out-ranks the light select[data-priority-value] option rule above.
+   :disabled gets GrayText back, or a disabled placeholder would read as
+   a choice. */
+html.dark select option,
+html.dark select optgroup {
+    background-color: Canvas;
+    color: CanvasText;
+}
+
+html.dark select option:disabled {
+    color: GrayText;
+}
+
+/* ===================================================================
+   PRINT / EXPORT
+   Exactly one section per page carries `data-print-section
+   data-print-title="..."`; everything else is hidden, or a page with
+   several sections would print them all.
+
+   `:not([attr])`, deliberately NOT `:has()`, whose browser floor is
+   unverified on the lab and defense machines.
+
+   CASCADE NOTE: .print-only sets `display`, so never combine it with
+   Tailwind's `hidden`. Everything else is inside @media print.
+   =================================================================== */
+
+/* Screen default for plain-text print stand-ins. No template uses one
+   now. */
+.print-only {
+    display: none;
+}
+
+@media print {
+    /* App shell. Hiding the topbar also covers the per-page buttons in
+       its slot. Deliberately NO blanket `a` rule: it would blank
+       Notification History's "Open" column. */
+    #app-sidebar,
+    .app-topbar,
+    #toast-container,
+    #delete-confirm-overlay,
+    #details-modal-overlay,
+    #report-status-menu,
+    [data-tt-controls],
+    form,
+    button {
+        display: none !important;
+    }
+
+    /* ...and bring the stand-ins back. Must come after the rule above:
+       same specificity, both !important. */
+    .print-only {
+        display: inline !important;
+    }
+
+    /* Only the marked section prints. */
+    section:not([data-print-section]) {
+        display: none !important;
+    }
+
+    /* ...but the marked section's OWN inner sections survive: a card
+       body is a <section> for Basecoat's padding, and hiding it would
+       take the table with it. Only inside a marked section, so an
+       unmarked sibling card stays off the paper. */
+    section[data-print-section] section {
+        display: block !important;
+    }
+
+    /* Interactive chrome has no meaning on paper. The buttons inside these
+       are already hidden by the blanket `button` rule above, but the
+       containers themselves would still print as empty bands, and the
+       page-size <select> in the footer is not a button. */
+    .dt-toolbar,
+    .dt-footer,
+    .dt-empty {
+        display: none !important;
+    }
+
+    /* On screen the table sits in a horizontal scroller. On paper there is
+       nothing to scroll, and the clip would cut the right-hand columns. */
+    .dt-table-wrap {
+        overflow: visible !important;
+        max-height: none !important;
+    }
+
+    /* Print scope, set by data-table.js just before window.print() and
+       cleared straight after. The table paginates on screen, so without
+       this only the ten rows of the current page would reach the paper.
+       .hidden is a Tailwind utility and app.css is unlayered, so these win
+       on order at equal specificity - the same cascade quirk that bites
+       elsewhere, used deliberately here. */
+    tr.dt-print-in {
+        display: table-row !important;
+    }
+
+    tr.dt-print-out {
+        display: none !important;
+    }
+
+    body {
+        background: #fff !important;
+    }
+
+    /* base.html's ml-64 on .app-content clears the fixed sidebar. */
+    .app-content {
+        margin-left: 0 !important;
+    }
+
+    main {
+        padding: 0 !important;
+    }
+
+    section[data-print-section] {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+
+    /* Title comes from the attribute rather than being hardcoded, so one
+       rule serves every page. */
+    section[data-print-section]::before {
+        content: attr(data-print-title);
+        display: block;
+        font-size: 16px;
+        font-weight: bold;
+        margin-bottom: 4px;
+    }
+
+    section[data-print-section]::after {
+        content: "BulSU Meneses Campus";
+        display: block;
+        font-size: 11px;
+        color: #6b7280;
+        margin-bottom: 16px;
+    }
+
+    table {
+        width: 100% !important;
+        font-size: 11px !important;
+        border-collapse: collapse !important;
+    }
+
+    th, td {
+        border: 1px solid #ccc !important;
+        padding: 6px 8px !important;
+    }
+
+    thead {
+        background-color: #f3f4f6 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Checkbox and action columns: data-print-skip is authored on the
+       <th> and on each <td>. */
+    th[data-print-skip],
+    td[data-print-skip] {
+        display: none !important;
+    }
+}
+
+/* Firefox only: the printed card as a plain block. Firefox cannot break
+   pages inside a flex column: it pushes the whole card to page 2 and
+   slices rows across breaks. As a block the card breaks between rows and
+   repeats the header, as Chrome does. -moz-orient makes this Firefox-only,
+   so Chrome's printout does not move; the margins below replace the flex
+   gap. Print-only, so the screen is untouched. */
+@media print {
+    @supports (-moz-orient: inline) {
+        section[data-print-section] {
+            display: block !important;
+        }
+
+        section[data-print-section]::before {
+            margin-bottom: 28px;
+        }
+
+        section[data-print-section] > * + * {
+            margin-top: 24px;
+        }
+
+        section[data-print-section]::after {
+            margin-top: 24px;
+        }
+    }
+}
+
+/* ===================================================================
+   DASHBOARD CHART BARS
+   Hover and click affordance for SVG bar charts. No template draws one
+   now: the dashboard's chart is Basecoat's canvas donut. Sets NO
+   `display`.
+   =================================================================== */
+.chart-bar {
+    cursor: pointer;
+    transition: opacity 120ms ease-out;
+}
+
+.chart-bar:hover {
+    opacity: 0.72;
+}
+
+/* Keyboard parity: the bars are focusable, so they need a visible ring.
+   SVG ignores box-shadow, hence outline. */
+.chart-bar:focus-visible {
+    outline: 2px solid #2f68dd;
+    outline-offset: 2px;
+}
+
+/* Whole-column hit target sitting behind each activity bar, so a day with
+   one short bar is still easy to click. Invisible until hovered. */
+.chart-hit {
+    fill: #0b0b0b;
+    opacity: 0;
+    cursor: pointer;
+    transition: opacity 120ms ease-out;
+}
+
+.chart-hit:hover {
+    opacity: 0.04;
+}
+
+.chart-hit:focus-visible {
+    outline: 2px solid #2f68dd;
+    outline-offset: -2px;
+}
+
+/* Floating chart tooltip: an SVG <title> is an OS tooltip, slow and
+   unstylable. These set `display` but are never combined with .hidden;
+   .chart-tip-open toggles opacity instead. */
+.chart-wrap {
+    position: relative;
+}
+
+.chart-tip {
+    display: block;
+    position: absolute;
+    z-index: 20;
+    top: 0;
+    left: 0;
+    /* Never eat the pointer: the tooltip sits over the bar it describes, and
+       a hover-out/hover-in loop would flicker forever. */
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 120ms ease-out, transform 120ms ease-out;
+    background: #ffffff;
+    border: 1px solid #e8eaf0;
+    border-radius: 10px;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.10);
+    padding: 8px 12px;
+    white-space: nowrap;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.chart-tip-open {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.chart-tip-title {
+    display: block;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 2px;
+}
+
+.chart-tip-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #4b5563;
+}
+
+.chart-tip-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    flex: none;
+}
+
+.chart-tip-hint {
+    display: block;
+    margin-top: 4px;
+    color: #9ca3af;
+    font-size: 11px;
+}
+
+/* Gridlines. Light enough to sit behind the bars rather than compete. */
+.chart-grid {
+    stroke: #eef0f4;
+    stroke-width: 1;
+}
+
+/* ---- entrance animation ----------------------------------------------
+   Bars grow from the axis once on load, staggered ~55ms apart. transform-box
+   is required for SVG: without it transform-origin resolves against the
+   viewBox origin, not the shape, and bars fly in from the corner.
+   Motion is one-shot (`forwards`, no loop) - this is orientation, not
+   decoration. */
+@keyframes chart-grow {
+    from { transform: scaleY(0); }
+    to   { transform: scaleY(1); }
+}
+
+@keyframes chart-grow-x {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+}
+
+.chart-grow {
+    transform-box: fill-box;
+    transform-origin: bottom;
+    animation: chart-grow 420ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+}
+
+.chart-grow-x {
+    transform-box: fill-box;
+    transform-origin: left;
+    animation: chart-grow-x 420ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+}
+
+/* Never animate onto paper, and honour the OS setting. */
+@media print {
+    .chart-grow,
+    .chart-grow-x {
+        animation: none !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chart-grow,
+    .chart-grow-x {
+        animation: none !important;
+    }
+    .chart-tip {
+        transition: none;
+    }
+}
+
+/* ===================================================================
+   CATEGORY LISTBOX (Software Library) + STATUS MENU (.rs-*)
+   -------------------------------------------------------------------
+   Plain classes, NOT utilities: a missing utility fails silently, and
+   these controls would just stop looking like controls. No rebuild.
+
+   CASCADE NOTE: nothing below sets `display`; both menus are toggled
+   with Tailwind's `hidden`.
+   =================================================================== */
+
+/* --- shared bits --------------------------------------------------- */
+
+.ael-caret {
+    margin-left: auto;
+    color: var(--color-muted);
+    font-size: 10px;
+    line-height: 1;
+}
+
+/* --- Software Library: category listbox ---------------------------- */
+
+/* Every colour here is a token, so the listbox follows both themes. */
+.ael-wrap {
+    position: relative;
+}
+
+.ael-btn {
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 0.75rem;
+    background: var(--color-canvas);
+    padding: 0.5rem 0.75rem;
+    font: inherit;
+    font-size: 0.875rem;
+    color: var(--color-ink);
+    text-align: left;
+    cursor: pointer;
+}
+
+.ael-btn:hover {
+    background: var(--color-subtle);
+}
+
+.ael-btn:focus,
+.ael-btn:focus-visible {
+    outline: none;
+    border-color: var(--color-ring);
+    box-shadow: 0 0 0 3px var(--color-ring-soft);
+}
+
+/* Mirrors the .border-danger swap validateCategory() already applies to
+   the native select, so an untouched category reads as invalid the same
+   way every other field on this form does. */
+.ael-btn.ael-invalid {
+    border-color: var(--color-danger);
+}
+
+.ael-placeholder {
+    color: var(--color-faint);
+}
+
+/* Fixed, not absolute: the add form's .card is overflow: hidden and
+   would clip the list. placeMenu() in software_library.html sets the
+   geometry. z-index 40 clears the topbar (30), under dialogs (50). */
+.ael-menu {
+    position: fixed;
+    z-index: 40;
+    max-height: 264px;
+    overflow-y: auto;
+    padding: 4px;
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    background: var(--color-canvas);
+    box-shadow: var(--shadow-pop);
+}
+
+.ael-opt {
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 0.5rem;
+    background: none;
+    font: inherit;
+    font-size: 0.875rem;
+    color: var(--color-ink);
+    text-align: left;
+    cursor: pointer;
+}
+
+.ael-opt:hover,
+.ael-opt.ael-active {
+    background: var(--color-subtle);
+}
+
+.ael-opt[aria-selected="true"] {
+    font-weight: 600;
+    color: var(--color-ink);
+}
+
+/* object-fit keeps a non-square PNG inside the box. */
+.ael-icon {
+    width: 20px;
+    height: 20px;
+    flex: none;
+    object-fit: contain;
+}
+
+/* utility.png, networking.png and other.png (the generic icon) are a
+   black glyph on transparency, invisible on a dark list. Inverted in
+   dark mode, then dimmed to the dark ink (#c1c1c1 = 255 x 0.757).
+   Matched on src, so it covers every place a category icon is drawn. */
+html.dark img[src*="/img/utility.png"],
+html.dark img[src*="/img/networking.png"],
+html.dark img[src*="/img/other.png"] {
+    filter: invert(1) brightness(0.757);
+}
+
+/* --- Problem Reports: status menu ---------------------------------- */
+
+.rs-btn {
+    align-items: center;
+    gap: 6px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.rs-btn:focus,
+.rs-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-ring-soft);
+}
+
+.rs-dot {
+    width: 7px;
+    height: 7px;
+    flex: none;
+    border-radius: 999px;
+    background: currentColor;
+}
+
+.rs-menu {
+    position: fixed;
+    z-index: 60;
+    min-width: 208px;
+    padding: 4px;
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    background: var(--color-canvas);
+    box-shadow: var(--shadow-pop);
+}
+
+.rs-opt {
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 0.5rem;
+    background: none;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.rs-opt:hover,
+.rs-opt.ael-active {
+    background: var(--color-subtle);
+}
+
+.rs-opt[aria-selected="true"] .rs-chip {
+    box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.rs-chip {
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* Priority tones: the same control keyed off data-priority instead of
+   data-status. The hexes match the select[data-priority-value] block
+   above. */
+.rs-btn[data-priority="high"],
+.rs-chip[data-priority="high"] {
+    background: var(--tone-bad-soft);
+    color: var(--tone-bad-fg);
+}
+
+.rs-btn[data-priority="medium"],
+.rs-chip[data-priority="medium"] {
+    background: var(--tone-warn-soft);
+    color: var(--tone-warn-fg);
+}
+
+.rs-btn[data-priority="low"],
+.rs-chip[data-priority="low"] {
+    background: var(--tone-good-soft);
+    color: var(--tone-good-fg);
+}
+
+/* Tone comes from a data attribute, never a class built in JS, which
+   Tailwind would never see (deploy-panel.js's CATEGORY_ACCENTS avoids
+   the same trap).
+
+   Four tones for six statuses: the two waiting states share blue, and
+   no fault found is neutral - finished, but not a repair. */
+.rs-btn[data-status="open"],
+.rs-chip[data-status="open"] {
+    background: var(--tone-bad-bg);
+    color: var(--tone-bad-fg);
+}
+
+.rs-btn[data-status="in_progress"],
+.rs-chip[data-status="in_progress"] {
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-fg);
+}
+
+.rs-btn[data-status="waiting_for_parts"],
+.rs-chip[data-status="waiting_for_parts"],
+.rs-btn[data-status="waiting_for_approval"],
+.rs-chip[data-status="waiting_for_approval"] {
+    background: var(--tone-info-soft);
+    color: var(--tone-info-fg);
+}
+
+.rs-btn[data-status="resolved"],
+.rs-chip[data-status="resolved"] {
+    background: var(--tone-good-bg);
+    color: var(--tone-good-fg);
+}
+
+.rs-btn[data-status="no_fault_found"],
+.rs-chip[data-status="no_fault_found"] {
+    background: var(--tone-neutral-bg);
+    color: var(--tone-neutral-fg);
+}
+
+/* A status the map does not know still renders a readable control. */
+.rs-btn {
+    background: var(--color-subtle);
+    color: var(--color-ink-soft);
+}
+
+/* --- busy state on slow submits ------------------------------------
+   Reset password and Create Account wait on an SMTP round trip, up to
+   SMTP_TIMEOUT_SECONDS of nothing happening. The button says so.
+
+   CASCADE NOTE: no `display` here - the JS sets the spinner's
+   inline-block as an INLINE STYLE - so nothing can out-rank `hidden`. */
+
+.busy-spinner {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 999px;
+    opacity: 0.9;
+    animation: busy-spin 700ms linear infinite;
+}
+
+@keyframes busy-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* A button mid-submit is not a button you can press again. Cursor and
+   opacity say that before the disabled attribute has to. */
+.is-busy {
+    opacity: 0.75;
+    cursor: progress;
+}
+
+/* Respect the OS setting - a spinner is decoration, the label is the
+   message, and the label does not move. */
+@media (prefers-reduced-motion: reduce) {
+    .busy-spinner {
+        animation: none;
+    }
+}
+
+/* ===================================================================
+   SHELL + DASHBOARD SKIN
+   -------------------------------------------------------------------
+   Restyles existing elements by their existing ids and classes, so the
+   collapse cookie, hover-peek, tooltips, sub-nav toggles and the
+   notification poll are untouched. No new utility, so no rebuild; an id
+   selector here outranks the utilities on the element.
+
+   CASCADE NOTE: .skin-crumbs and .skin-org set `display`; neither is
+   ever toggled with `hidden`.
+   =================================================================== */
+
+/* ---- rail --------------------------------------------------------- */
+
+/* 220ms eased instead of snapping. The width is owned by the utility
+   classes and the collapsed-state rules above. */
+#app-sidebar {
+    transition: width 220ms cubic-bezier(.4, 0, .2, 1);
+}
+
+/* The campus line under the wordmark. */
+.skin-org {
+    display: block;
+    font-size: 10.5px;
+    line-height: 1.2;
+    color: #9ca3af;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Nav items become bordered pills. The border is transparent when idle,
+   so nothing shifts by a pixel when it appears on hover or active -
+   which is the whole reason it is a transparent border rather than no
+   border at all. */
+#app-sidebar nav a,
+#app-sidebar nav button[data-subnav-toggle] {
+    border: 1px solid transparent;
+    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+#app-sidebar nav a:hover,
+#app-sidebar nav button[data-subnav-toggle]:hover {
+    border-color: #e8eaf0;
+}
+/* Active item: a transparent border keeps the same 1px box, so nothing
+   shifts on activate and the fill alone marks it. */
+#app-sidebar nav a[data-active=true],
+#app-sidebar nav button[data-active=true] {
+    border-color: transparent;
+}
+
+/* ---- topbar ------------------------------------------------------- */
+
+/* 30x30, no border; the 16px icon matches the sidebar's nav icons. */
+.topbar-icon-btn {
+    width: 30px;
+    height: 30px;
+}
+
+/* .skin-crumbs / .skin-crumb-sep are unused: the breadcrumb is Basecoat's
+   <nav class="breadcrumb">, styled by basecoat.css. */
+.skin-crumbs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #6b7280;
+}
+.skin-crumb-sep { color: #d1d5db; }
+
+.app-topbar .skin-icon-btn {
+    border-radius: 9px;
+    transition: background-color 140ms ease, color 140ms ease;
+}
+
+/* The notification dot. Slow enough to notice without being a strobe,
+   and it stops entirely under reduced motion. */
+.skin-badge-pulse {
+    animation: skin-pulse 2s ease-in-out infinite;
+}
+
+@keyframes skin-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .35; }
+}
+
+/* ---- motion vocabulary -------------------------------------------- */
+
+@keyframes skin-rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes skin-draw {
+    from { stroke-dashoffset: 100; }
+    to { stroke-dashoffset: 0; }
+}
+
+.skin-rise {
+    animation: skin-rise 320ms ease both;
+}
+
+/* ---- KPI cards ---------------------------------------------------- */
+
+/* Hover lift. Cheap, and it is the single thing that makes a card feel
+   like an object rather than a box. */
+.skin-card {
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.skin-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -2px rgba(16, 24, 40, .06), 0 12px 16px -4px rgba(16, 24, 40, .10);
+}
+
+.skin-value {
+    font-weight: 700;
+    letter-spacing: -.02em;
+}
+
+.skin-spark path {
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: skin-draw 900ms ease both;
+}
+
+/* Total Computers has no daily history to draw, so it holds the space
+   instead and the row stays level. */
+.skin-spark-empty {
+    width: 76px;
+    height: 30px;
+    flex: none;
+}
+
+/* ---- menus ---------------------------------------------------------- */
+
+/* The three dropdowns are shown by REMOVING `hidden`, and re-displaying an
+   element restarts its animation - so this runs on every open with no JS
+   at all. Deliberately no `display` here: `hidden` still owns that, and
+   an animation on a display:none element simply does not play. */
+.skin-pop {
+    animation: skin-pop 140ms ease both;
+    transform-origin: top right;
+}
+
+/* The sidebar account menu opens UPWARDS out of the tile at the bottom of
+   the rail, so it grows from its own bottom edge rather than from a
+   corner that is not there. */
+#admin-menu.skin-pop {
+    transform-origin: bottom left;
+}
+
+@keyframes skin-pop {
+    from { opacity: 0; transform: scale(.96); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ---- chart bars ---------------------------------------------------- */
+
+/* Nothing here: .chart-grow above already animates the bars, and a
+   second animation would fight it. */
+
+/* ---- reduced motion ------------------------------------------------ */
+
+/* Everything above is decoration over a page that reads fine without
+   it, so under this setting it all stops. The count-up in base.html
+   checks the same query and jumps to the final number. */
+@media (prefers-reduced-motion: reduce) {
+    .skin-rise,
+    .skin-spark path,
+    .skin-badge-pulse,
+    .skin-pop {
+        animation: none;
+    }
+    .skin-spark path {
+        stroke-dashoffset: 0;
+    }
+    .skin-card {
+        transition: none;
+    }
+    .skin-card:hover {
+        transform: none;
+    }
+}
+
+/* ---- Dashboard Tasks card -------------------------------------------
+   Plain CSS only, like the rest of this file - no @apply, since app.css
+   is loaded as its own <link> and never goes through the Tailwind build. */
+
+/* The grip is the affordance; the whole row is draggable so the drag
+   target is not a 14px dot. */
+.task-grip {
+    cursor: grab;
+}
+
+.task-row {
+    transition: box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.task-row-dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+    box-shadow: var(--shadow-drag);
+}
+
+/* Pinned to the bottom of the VIEWPORT, not the card: it belongs to the
+   whole selection, and the card itself scrolls. z-index sits under
+   .rs-menu's 60 so the status/priority menus open above it. */
+.task-bulk-bar {
+    position: fixed;
+    z-index: 50;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--color-line);
+    border-radius: 999px;
+    background: var(--color-canvas);
+    box-shadow: var(--shadow-pop);
+}
+
+/* .hidden is a Tailwind utility (display:none) and app.css is unlayered, so
+   the display:flex above beats it and the bar would never hide. This wins it
+   back on specificity (0,2,0 over 0,1,0) rather than relying on order. */
+.task-bulk-bar.hidden {
+    display: none;
+}
+
+.task-bulk-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 12px;
+    border: 1px solid var(--color-line);
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.task-bulk-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--color-muted);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.task-bulk-clear:hover {
+    background: var(--color-subtle);
+    color: var(--color-ink);
+}
+
+.task-bulk-sep {
+    width: 1px;
+    height: 20px;
+    background: var(--color-line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .task-row {
+        transition: none;
+    }
+}
+
+/* Deep-linked row highlight (Problem Reports, from the Tasks card's
+   link). box-shadow, not a background, so the row's own hover:bg-subtle
+   cannot cancel it the moment the pointer lands on it. */
+.report-row-linked {
+    animation: report-row-linked-flash 2400ms ease-out both;
+}
+
+@keyframes report-row-linked-flash {
+    0%, 55% {
+        box-shadow: inset 0 0 0 2px #4173d8;
+        background-color: #eff6ff;
+    }
+    100% {
+        box-shadow: inset 0 0 0 2px rgba(65, 115, 216, 0);
+        background-color: transparent;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    /* No fade, but the row still gets marked: the entire point of the link is
+       to say "this one", so dropping the cue outright would defeat it. It is
+       cleared on a timer by the same script either way. */
+    .report-row-linked {
+        animation: none;
+        box-shadow: inset 0 0 0 2px #4173d8;
+    }
+}
+
+/* ---- Dashboard Recent Activity card ---------------------------------- */
+
+/* THE --color-muted COLLISION, FIXED LOCALLY. Basecoat's `.avatar > span`
+   uses bg-muted, but AppEase's --color-muted is a TEXT grey, so the disc
+   is illegible. Scoped here, not by repointing the token `text-muted`
+   uses in ~60 places. Basecoat Tabs, Table or Progress would need the
+   same treatment. */
+.activity-avatar > span:not(.avatar-badge) {
+    background: var(--color-subtle);
+    color: var(--color-ink-soft);
+    font-weight: 600;
+    font-size: 0.6875rem;
+    letter-spacing: 0.01em;
+}
+
+/* The Audit Trail's tone vocabulary, so a deletion reads red in both
+   places. */
+.activity-avatar[data-tone="danger"] > span:not(.avatar-badge) {
+    background: var(--tone-bad-bg);
+    color: var(--tone-bad-fg);
+}
+
+.activity-avatar[data-tone="warn"] > span:not(.avatar-badge) {
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-fg);
+}
+
+.activity-avatar[data-tone="info"] > span:not(.avatar-badge) {
+    background: var(--tone-info-bg);
+    color: var(--tone-info-fg);
+}
+
+.activity-tab {
+    padding: 6px 10px;
+    border: 1px solid var(--color-line);
+    border-radius: 0.5rem;
+    background: var(--color-canvas);
+    color: var(--color-muted);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.125rem;
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+}
+
+.activity-tab:hover {
+    background: var(--color-subtle);
+}
+
+/* Selected state rides on aria-selected rather than a parallel class, so the
+   accessible state and the visible state cannot drift apart. */
+.activity-tab[aria-selected="true"] {
+    border-color: var(--color-invert);
+    background: var(--color-invert);
+    color: var(--color-invert-foreground);
+}
+
+.activity-item {
+    scroll-margin-top: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .activity-tab {
+        transition: none;
+    }
+}
+
+/* ==== Data table v2 (tablecn-style) ==================================
+   Scoped to .dt-*. Plain CSS: app.css never goes through the Tailwind
+   build, so no @apply. */
+
+.dt-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.dt-toolbar-left,
+.dt-toolbar-right {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.dt-search {
+    height: 32px;
+    width: 220px;
+    padding: 0 10px;
+    border: 1px solid var(--color-line);
+    border-radius: 0.5rem;
+    background: var(--color-canvas);
+    font-size: 0.8125rem;
+    color: var(--color-ink);
+}
+
+.dt-search::placeholder { color: var(--color-faint); }
+
+.dt-search:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-ring-soft);
+}
+
+/* Dashed border is the tablecn cue for "filter not applied yet"; it goes
+   solid once the filter is actually carrying a value. */
+.dt-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px dashed var(--color-line-strong);
+    border-radius: 0.5rem;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.dt-btn:hover { background: var(--color-subtle); }
+
+.dt-btn.is-active { border-style: solid; border-color: var(--color-ink); }
+
+.dt-btn[data-tone="danger"] {
+    border-style: solid;
+    border-color: var(--tone-bad-border);
+    background: var(--tone-bad-soft);
+    color: var(--tone-bad-fg);
+}
+
+.dt-btn[data-tone="danger"]:hover { background: var(--tone-bad-bg); }
+
+.dt-toolbar-right .dt-btn { border-style: solid; }
+
+.dt-icon { width: 14px; height: 14px; flex-shrink: 0; }
+
+.dt-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 0.375rem;
+    background: var(--color-subtle);
+    color: var(--color-ink);
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+/* .hidden is a Tailwind utility and app.css is unlayered, so the
+   display:inline-flex above would beat it and show an empty count chip.
+   This wins it back on specificity (0,2,0 vs 0,1,0), like
+   .dt-actionbar.hidden. t/test_hidden_cascade.py checks it. */
+.dt-badge.hidden { display: none; }
+
+/* ---- menus (appended to <body>, positioned fixed) ---- */
+.dt-menu {
+    position: fixed;
+    z-index: 70;
+    min-width: 190px;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 4px;
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+    background: var(--color-canvas);
+    box-shadow: var(--shadow-pop);
+}
+
+.dt-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 0.5rem;
+    background: none;
+    color: var(--color-ink);
+    font: inherit;
+    font-size: 0.8125rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.dt-menu-item:hover { background: var(--color-subtle); }
+/* Same trap as .dt-badge.hidden: every menu search hides non-matching
+   items with .hidden, which display:flex above would defeat. */
+.dt-menu-item.hidden { display: none; }
+/* A View toggle for a column that has a filter: it cannot be hidden while
+   filtered (data-table.js), so it reads as unavailable rather than broken. */
+.dt-menu-item:disabled { cursor: default; color: var(--color-muted); }
+.dt-menu-item:disabled:hover { background: transparent; }
+
+/* ---- menu internals (search / counts / footer) ---- */
+.dt-menu-panel { display: flex; flex-direction: column; }
+
+.dt-menu-list { display: flex; flex-direction: column; max-height: 260px; overflow-y: auto; }
+
+.dt-menu-list form { display: contents; }
+
+.dt-menu-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    margin: -4px -4px 4px;
+    border-bottom: 1px solid var(--color-rule);
+    color: var(--color-faint);
+}
+
+.dt-menu-search input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: none;
+    outline: none;
+    font: inherit;
+    font-size: 0.8125rem;
+    color: var(--color-ink);
+}
+
+.dt-menu-search input::placeholder { color: var(--color-faint); }
+
+.dt-menu-text { flex: 1; min-width: 0; }
+
+/* Counts are right-aligned and tabular so the column of numbers lines up
+   regardless of how many digits each has. */
+.dt-menu-count {
+    margin-left: auto;
+    padding-left: 10px;
+    color: var(--color-muted);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.dt-menu-mark { margin-left: auto; padding-left: 10px; color: var(--color-ink); }
+
+.dt-menu-mark svg { width: 14px; height: 14px; }
+
+.dt-menu-none { padding: 18px 8px; color: var(--color-muted); font-size: 0.8125rem; text-align: center; }
+
+.dt-menu-footer { margin-top: 4px; }
+
+/* Row count beside an Export option. Same right-aligned tabular treatment
+   as .dt-menu-count so the two menus read alike, but its own class: the
+   facet counts are filter cardinalities and this is an export size, and a
+   shared class would invite one to be restyled on behalf of the other. */
+.dt-menu-hint {
+    margin-left: auto;
+    padding-left: 10px;
+    color: var(--color-muted);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.dt-menu-item[data-tone="destructive"] { color: var(--tone-bad-fg); }
+
+.dt-menu-item[data-tone="destructive"]:hover { background: var(--tone-bad-soft); }
+
+.dt-menu-item svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+.dt-menu-list hr { margin: 4px 0; border: 0; border-top: 1px solid var(--color-rule); }
+
+/* ===================================================================
+   AUTH PAGES (login, forgot_password, reset_password, set_password)
+   All four extend auth_base.html, which extends nothing, so everything
+   they need lives here or in tailwind.css. The dark surface is a
+   literal, NOT a token: these pages stay out of the theme, and a token
+   whose meaning changed once already left a white card on a white page.
+   =================================================================== */
+.auth-stage {
+    min-height: 100vh;
+    background-color: #1e2128;
+    color: #e5e7eb;
+}
+
+/* One dark surface across the full width, the card floating on it right
+   of centre.
+
+   The dot grid is here, not on .auth-stage, because the pre-paint literal
+   describes .auth-stage as a flat colour. A radial-gradient, NOT an
+   image: the labs are offline, and a decorative asset can 404.
+
+   The asymmetric inline padding is the layout: 3.8vw/13.44vw is
+   73px/258px at 1920. */
+.auth-split {
+    display: grid;
+    grid-template-columns: minmax(0, 817px) minmax(0, 440px);
+    justify-content: space-between;
+    align-items: center;
+    min-height: 100vh;
+    padding: 48px 13.44vw 48px 3.8vw;
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+    background-size: 26px 26px;
+}
+
+/* The left column of the dark surface, full height, so the wordmark sits
+   at the top and the copyright at the foot while the card centres. */
+.auth-brand-panel {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 48px;
+    color: #e5e7eb;
+}
+
+.auth-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.auth-brand-mark {
+    display: block;
+    width: 40px;
+    height: 40px;
+}
+
+.auth-brand-name {
+    display: block;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: #ffffff;
+}
+
+.auth-brand-campus {
+    display: block;
+    font-size: 0.75rem;
+    color: #9aa3b2;
+}
+
+/* No max-width: the 817px grid track is the measure. No text-wrap:
+   balance: login's headline is hard-wrapped into spans, which balance
+   would fight. */
+.auth-headline {
+    font-size: clamp(2rem, 2.8vw, 3.5rem);
+    font-weight: 600;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    color: #ffffff;
+}
+
+/* The last phrase, lightened: the primary is too dark on #1e2128 to read
+   as emphasis. display:block so it always starts its own line rather
+   than wrapping mid-phrase. Never paired with .hidden. */
+.auth-headline-accent {
+    display: block;
+    color: #7ea6f0;
+}
+
+/* ---- the left column --------------------------------------------------
+   Headline and what follows are ONE composition, centred together:
+   centring the lower block in the leftover space is biased by whatever
+   sits above it.
+
+   `safe center`: on a 1366x768 monitor this column is shorter than its
+   content, and safe falls back to start-alignment exactly then (as does
+   a browser that does not know the keyword).
+
+   gap: 0 because the joint belongs to the block after the headline
+   (.auth-brand-lede, .auth-brand-features), so one rule serves pages
+   with a lede and pages with a feature list.
+
+   No .auth-brand-* rule is ever paired with .hidden. */
+.auth-brand-mid {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: safe center;
+    gap: 0;
+}
+
+/* The lede on the three password pages: 24px under the headline, not the
+   feature list's 64px, or it detaches. On the feature line's ramp (22px
+   at 1920), with its own measure.
+
+   :empty does not match whitespace, so the block in auth_base.html stays
+   on ONE line; login fills brand_features and must not pay for an empty
+   paragraph's margin. */
+.auth-brand-lede {
+    margin-top: 24px;
+    max-width: 46ch;
+    font-size: clamp(1.0625rem, 0.6875rem + 0.63vw, 1.375rem);
+    line-height: 1.6;
+    color: #9aa3b2;
+}
+
+.auth-brand-lede:empty {
+    display: none;
+}
+
+/* margin: 0: the column above centres the pair, and an auto margin here
+   would tear the group off the headline. gap: 0 because each block has
+   its own rule, and a gap would split hairlines meant to read as one. */
+.auth-brand-features {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 64px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* A rule on top of every block plus one under the last closes the group
+   at both ends. 9% white: visible on #1e2128, gone before it competes. */
+.auth-brand-feature {
+    display: block;
+    padding: 0.875rem 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.auth-brand-feature:last-child {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+/* Fluid like .auth-headline, but the middle term is rem + vw rather than a
+   bare vw: a bare 1.15vw hits its floor everywhere below 1900px and the type
+   would have been flat at the floor on the 1366 and 1440 lab monitors. This
+   ramp is pinned to two real widths instead - 18px at 1280, 22px at 1920 -
+   and clamps outside them. */
+.auth-brand-feature-title {
+    display: block;
+    font-size: clamp(1.25rem, 0.75rem + 0.78vw, 1.625rem);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: #ffffff;
+}
+
+/* Same ramp, one step down: 16px at 1280, 19px at 1920. */
+.auth-brand-feature-line {
+    display: block;
+    margin-top: 6px;
+    font-size: clamp(1.0625rem, 0.6875rem + 0.63vw, 1.375rem);
+    line-height: 1.5;
+    color: #9aa3b2;
+}
+
+/* Foot of the panel on every auth page, both modes. Muted hard - it is the
+   least important thing on the screen and must not compete with the headline
+   for the first look. */
+.auth-brand-legal {
+    font-size: 0.75rem;
+    color: #6f7889;
+}
+
+/* Transparent: the card is the only light surface on the page. */
+.auth-form-panel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-ink, #111827);
+}
+
+.auth-form-inner {
+    width: 100%;
+    max-width: 440px;
+}
+
+/* The card holds the heading, the form and the foot together, so the two
+   formless states (forgot_password after sending, reset_password on a
+   dead link) still show a card with a message. */
+.auth-form-card {
+    border-radius: 18px;
+    background: #ffffff;
+    padding: 52px 40px;
+    box-shadow: 0 28px 64px -24px rgba(0, 0, 0, 0.65),
+                0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+/* Plain text, NOT a link: there is no support address in the app to
+   point at. It takes the hairline only when the card foot is empty
+   (login), so two hairlines never stack. */
+.auth-help {
+    margin-top: 28px;
+    padding-top: 22px;
+    border-top: 1px solid #e5e7eb;
+    text-align: center;
+}
+
+.auth-help p {
+    font-size: 0.75rem;
+    line-height: 1.6;
+    color: #6b7280;
+}
+
+.auth-help p:first-child {
+    font-weight: 500;
+    color: #4b5563;
+}
+
+/* The copyright again, for widths where the brand panel is hidden;
+   exactly one of the two is visible. Never paired with .hidden. */
+.auth-legal-compact {
+    display: none;
+    margin-top: 18px;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #7a8394;
+}
+
+/* Shown only once the brand panel is hidden, so the product still names
+   itself on a narrow screen. Sets `display` deliberately and is never paired
+   with Tailwind's .hidden, so the app.css cascade trap does not apply. */
+.auth-compact-brand {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+}
+
+.auth-compact-brand img {
+    display: block;
+    width: 32px;
+    height: 32px;
+}
+
+/* Light text: it sits on the dark surface. */
+.auth-compact-brand span {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #e5e7eb;
+}
+
+/* Below this the brand panel is HIDDEN rather than stacked. Stacking a
+   decorative panel above the form pushes the fields off a phone screen, which
+   is worse than losing the artwork - the compact wordmark above carries the
+   branding instead. */
+@media (max-width: 880px) {
+    /* The left column would push the card off a phone screen, so it goes -
+       but the surface stays dark rather than flipping to white, and the grid
+       collapses to the card's single track. */
+    .auth-split {
+        grid-template-columns: minmax(0, 440px);
+        justify-content: center;
+        padding: 32px 20px;
+    }
+
+    .auth-brand-panel {
+        display: none;
+    }
+
+    .auth-compact-brand {
+        display: flex;
+    }
+
+    /* The panel that carries the copyright is gone by here, so the compact
+       line takes over. */
+    .auth-legal-compact {
+        display: block;
+    }
+}
+
+/* The first headline line. The second is .auth-headline-accent, which is
+   already display:block. Sets `display` and is never paired with Tailwind's
+   .hidden, so the app.css cascade trap does not apply. */
+.auth-headline-line {
+    display: block;
+}
+
+.auth-head {
+    text-align: left;
+}
+
+.auth-head h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.auth-head p {
+    margin-top: 6px;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+/* forgot_password's helper goes silent once the link is sent. :empty does not
+   match whitespace, so the block in auth_base.html stays on ONE line and the
+   page emits no whitespace in that branch - the same contract as .auth-foot
+   and .auth-brand-lede. */
+.auth-head p:empty {
+    display: none;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    margin-top: 24px;
+}
+
+/* Label on the left, "Forgot password?" pushed to the right, as in the
+   reference. */
+.auth-label-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.auth-label-row label {
+    margin: 0;
+}
+
+.auth-label-row .auth-link {
+    margin-left: auto;
+}
+
+.auth-link {
+    font-size: 0.8125rem;
+    color: var(--color-primary, #2f68dd);
+    text-decoration: none;
+}
+
+.auth-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+.auth-submit {
+    width: 100%;
+}
+
+/* "Sign out instead" on set_password.html. It is a POST, so it has to be a
+   real button in a form rather than a link - this makes it read as the same
+   kind of escape hatch as .auth-link, which is the only other way off an auth
+   page. */
+.auth-signout {
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: inherit;
+    font-size: 0.8125rem;
+    color: var(--color-primary, #2f68dd);
+    cursor: pointer;
+}
+
+.auth-signout:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+.auth-error {
+    border: 1px solid #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.875rem;
+}
+
+.auth-notice {
+    border: 1px solid #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    margin-top: 24px;
+}
+
+/* One footer zone per card, one hairline. The foot takes it whenever it has
+   content - "Back to sign in", the 15-minute note, "Sign out instead" - and
+   the contact block then falls in behind it rather than drawing a second.
+   On login the foot is empty, :empty hides it, and .auth-help keeps the
+   hairline instead.
+
+   Centred, not left: above the hairline everything is form furniture and left
+   -aligned with the labels; below it is supporting text, and a left-aligned
+   foot over a centred contact block read as two unrelated things. */
+.auth-foot {
+    display: block;
+    text-align: center;
+    margin-top: 24px;
+}
+
+.auth-foot:not(:empty) {
+    margin-top: 28px;
+    padding-top: 22px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.auth-foot:not(:empty) + .auth-help {
+    margin-top: 14px;
+    padding-top: 0;
+    border-top: 0;
+}
+
+/* Empty on login. Collapsing it keeps the panel's optical centring
+   honest. */
+.auth-foot:empty {
+    display: none;
+    margin-top: 0;
+}
+
+.auth-foot p {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 4px;
+}
+
+/* ===================================================================
+   REPORT A PROBLEM (report.html)
+   Does NOT extend base.html and links tailwind.css + app.css directly,
+   so what it needs lives in one of those. None of these is paired with
+   .hidden; .rep-file-input deliberately avoids display:none.
+   =================================================================== */
+.rep-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+/* CASCADE TRAP: a `display` here beats .hidden, so a role block wearing
+   .rep-fields would stay on screen while hidden. .rep-group has no
+   display of its own; this gives it one only while NOT hidden. */
+.rep-group:not(.hidden) {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+/* Two fields on one line, stacking on a phone: students scan the sticker
+   and fill this in on their own device. */
+.rep-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+@media (max-width: 480px) {
+    .rep-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.rep-req {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+.rep-textarea {
+    min-height: 112px;
+    resize: vertical;
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+
+/* Hidden from sight but NOT from the accessibility tree or focus: a
+   display:none input cannot be focused, which breaks keyboard access to the
+   file picker and stops the browser from anchoring a validation message on
+   it. */
+.rep-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.rep-file-list {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rep-file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--color-line, #e6e8ee);
+    border-radius: 10px;
+    background: #f9fafb;
+    padding: 10px 12px;
+    font-size: 0.875rem;
+}
+
+.rep-file-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rep-file-size {
+    flex: 0 0 auto;
+    color: #6b7280;
+    font-size: 0.75rem;
+}
+
+.rep-file-remove {
+    flex: 0 0 auto;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    padding: 0 2px;
+    font-size: 1.125rem;
+    line-height: 1;
+    color: #6b7280;
+}
+
+.rep-file-remove:hover {
+    color: #111827;
+}
+
+.rep-submit {
+    width: 100%;
+    margin-top: 4px;
+}
+
+/* Generated-password row in the accounts dialog: the value fills the line,
+   the Copy button keeps its natural width. Plain CSS, no rebuild, and it
+   sets `display` only on classes never paired with Tailwind's .hidden. */
+.adm-password-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.adm-password-value {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    border: 1px solid var(--color-line, #e6e8ee);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9375rem;
+}
+
+/* A compact <select> for a bulk action bar: Basecoat's .input is
+   taller than the bar's buttons, and the row would jump in height when
+   a selection appears. No `display`. */
+.dt-bulk-select {
+    height: 32px;
+    min-width: 132px;
+    padding-top: 0;
+    padding-bottom: 0;
+    font-size: 0.8125rem;
+}
+
+/* The edit drawers' field spacing, as plain CSS: space-y-* utilities
+   are not reliably compiled. Its `display` is on a class never combined
+   with .hidden. */
+.sw-edit-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ---- active facet trigger chips ---- */
+.dt-icon-slot { display: inline-flex; }
+
+.dt-chips { display: inline-flex; align-items: center; gap: 4px; }
+/* Same trap as .dt-badge.hidden: the empty chip slot of every filter button
+   stayed in the button's flex layout while "hidden". */
+.dt-chips.hidden { display: none; }
+
+.dt-chip-sep { width: 1px; height: 14px; background: var(--color-line); margin: 0 2px; }
+
+.dt-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 0.375rem;
+    background: var(--color-subtle);
+    color: var(--color-ink);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* ---- sort panel ---- */
+/* Roomier than the other menus: this panel holds real controls (two
+   pickers, a delete and a drag handle per row), not a list of choices. */
+.dt-sort-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 360px;
+    padding: 12px;
+}
+
+.dt-sort-title { color: var(--color-ink); font-size: 0.8125rem; font-weight: 600; }
+
+.dt-sort-list { display: flex; flex-direction: column; gap: 10px; }
+
+.dt-sort-row { display: flex; align-items: center; gap: 8px; }
+
+.dt-sort-row.is-dragging { opacity: 0.5; }
+
+.dt-sort-field,
+.dt-sort-dir {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--color-line);
+    border-radius: 0.5rem;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font: inherit;
+    font-size: 0.8125rem;
+    cursor: pointer;
+}
+
+.dt-sort-field { flex: 1; min-width: 0; }
+.dt-sort-dir { width: 92px; }
+
+.dt-sort-field:hover,
+.dt-sort-dir:hover { background: var(--color-subtle); }
+
+.dt-sort-remove { width: 32px; height: 32px; }
+
+.dt-sort-grip { display: inline-flex; align-items: center; padding: 0 2px; color: var(--color-faint); cursor: grab; }
+
+.dt-sort-actions { display: flex; align-items: center; gap: 8px; padding-top: 2px; }
+
+/* ---- custom date range (Created menu) ---- */
+.dt-range {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 8px 4px;
+    margin-top: 4px;
+    border-top: 1px solid var(--color-rule);
+}
+
+.dt-range-title { color: var(--color-muted); font-size: 0.75rem; font-weight: 500; }
+
+.dt-range-fields { display: flex; align-items: center; gap: 6px; }
+
+.dt-range-input {
+    flex: 1;
+    min-width: 0;
+    height: 30px;
+    padding: 0 6px;
+    border: 1px solid var(--color-line);
+    border-radius: 0.5rem;
+    background: var(--color-canvas);
+    font: inherit;
+    font-size: 0.75rem;
+    color: var(--color-ink);
+}
+
+.dt-range-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-ring-soft);
+}
+
+.dt-range-sep { color: var(--color-faint); font-size: 0.75rem; }
+
+.dt-range-note { color: var(--tone-bad-fg); font-size: 0.6875rem; }
+
+.dt-range .dt-btn { justify-content: center; }
+
+.dt-btn-solid { border-style: solid; border-color: var(--color-invert); background: var(--color-invert); color: var(--color-invert-foreground); }
+
+.dt-btn-solid:hover { background: var(--color-invert-hover); }
+
+.dt-btn:disabled { opacity: 0.5; cursor: default; }
+
+.dt-btn:disabled:hover { background: var(--color-canvas); }
+
+.dt-btn-solid:disabled:hover { background: var(--color-invert); }
+
+/* ---- row action trigger ---- */
+.dt-row-menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    background: none;
+    color: var(--color-muted);
+    cursor: pointer;
+}
+
+.dt-row-menu:hover { background: var(--color-subtle); color: var(--color-ink); }
+
+.dt-row-menu svg { width: 16px; height: 16px; }
+
+.dt-menu-clear {
+    margin-top: 4px;
+    border-top: 1px solid var(--color-rule);
+    border-radius: 0;
+    color: var(--color-muted);
+    justify-content: center;
+}
+
+.dt-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 0.25rem;
+    color: var(--color-primary-foreground);
+}
+
+.dt-check.is-on { border-color: var(--color-primary); background: var(--color-primary); }
+
+/* ---- table ---- */
+.dt-table-wrap {
+    position: relative;
+    overflow-x: auto;
+    border: 1px solid var(--color-line);
+    border-radius: 0.75rem;
+}
+
+.dt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    color: var(--color-ink);
+}
+
+/* Header and body share one surface. The card behind them is --color-card
+   (#f9f9f9), so an unpainted tbody showed the card grey under a white
+   thead - two tones inside one bordered box. */
+.dt-table { background: var(--color-canvas); }
+
+.dt-table thead th {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-line);
+    background: var(--color-canvas);
+    color: var(--color-muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.dt-th-sortable { cursor: pointer; user-select: none; }
+
+.dt-th-sortable:hover { color: var(--color-ink); }
+
+.dt-arrow {
+    display: inline-flex;
+    margin-left: 4px;
+    vertical-align: middle;
+    color: var(--color-faint);
+}
+
+.dt-arrow .is-active { color: var(--color-ink); }
+
+.dt-table tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-rule);
+    vertical-align: middle;
+}
+
+.dt-table tbody tr:last-child td { border-bottom: 0; }
+
+/* Timestamps, IDs and IPs are all .font-mono here and must not wrap: at
+   ~1280px "2026-08-01 01:15:00" broke onto three lines and tripled the row
+   height. The wrapper scrolls horizontally instead, which is the right
+   trade for fixed-shape values. */
+.dt-table tbody td.font-mono { white-space: nowrap; }
+
+.dt-table tbody tr:hover { background: var(--color-subtle); }
+
+/* Selected rows keep their tint on hover - otherwise moving the pointer
+   across a selected row makes it look deselected. */
+.dt-table tbody tr.dt-row-selected,
+.dt-table tbody tr.dt-row-selected:hover { background: var(--color-row-selected); }
+
+.dt-col-select { width: 40px; }
+.dt-col-id { width: 72px; }
+.dt-col-actions { width: 104px; }
+
+.dt-empty {
+    padding: 40px 12px;
+    color: var(--color-muted);
+    font-size: 0.8125rem;
+    text-align: center;
+}
+
+.dt-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+/* Same trap as .dt-badge.hidden. Software Library hides its confidence-tier
+   pill (#filled-tier) when there is no tier - "an unlabelled badge reads as a
+   rendering fault" - and display:inline-flex above drew it anyway, empty. */
+.dt-pill.hidden { display: none; }
+
+.dt-pill[data-tone="good"] { background: var(--tone-good-bg); color: var(--tone-good-fg); }
+.dt-pill[data-tone="info"] { background: var(--tone-info-bg); color: var(--tone-info-fg); }
+.dt-pill[data-tone="warn"] { background: var(--tone-warn-bg); color: var(--tone-warn-fg); }
+.dt-pill[data-tone="bad"] { background: var(--tone-bad-bg); color: var(--tone-bad-fg); }
+.dt-pill[data-tone="neutral"] { background: var(--tone-neutral-bg); color: var(--tone-neutral-fg); }
+
+/* A job's result reason - the dashboard's Result column and the deploy
+   progress rows. Text only, no fill: it sits beside a status pill that
+   already carries one, and two filled pills side by side read as two
+   statuses. A seventh reader of the shared --tone-* set rather than a
+   palette of its own. No display property, so Tailwind's .hidden still
+   wins over it. */
+.job-result { font-size: 0.75rem; }
+.job-result[data-tone="good"] { color: var(--tone-good-fg); }
+.job-result[data-tone="info"] { color: var(--tone-info-fg); }
+.job-result[data-tone="warn"] { color: var(--tone-warn-fg); }
+.job-result[data-tone="bad"] { color: var(--tone-bad-fg); }
+.job-result[data-tone="neutral"] { color: var(--tone-neutral-fg); }
+
+/* A read-only details panel's label/value grid, general-purpose (Job
+   Details on the dashboard uses it).
+
+   No margin: this is unlayered and would silently beat a Tailwind
+   spacing utility; consecutive lists are divided by a rule instead.
+   `display` is on the <dl> only, which is never hidden; the pairs inside
+   are toggled with .hidden and set no display of their own. */
+.details-list {
+    display: grid;
+    grid-template-columns: 11.5rem minmax(0, 1fr);
+    column-gap: 0.75rem;
+    row-gap: 0.5rem;
+    font-size: 0.875rem;
+}
+.details-list > dt { font-weight: 500; color: var(--color-ink); }
+.details-list > dd { color: var(--color-body); min-width: 0; overflow-wrap: anywhere; }
+.details-list + .details-list { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--color-line); }
+.details-note { margin-top: 0.25rem; font-size: 0.75rem; line-height: 1.45; color: var(--color-muted); }
+/* The muted dash for a value nobody recorded - blank, never "Unknown". */
+.details-blank { color: var(--color-muted); }
+
+/* A disclosure marker for a plain <details> summary. Basecoat makes every
+   `details summary` display:inline-flex and hides WebKit's marker, so the
+   browser's own triangle never shows and a summary reads as plain text. This
+   puts one back: a small right-pointing triangle in the summary's own colour
+   - so it follows both themes - turned to point down while the details are
+   open. Drawn as ::before and setting no display on the summary itself, so
+   .hidden on a summary still wins. The `/ ""` form keeps the triangle out of
+   screen readers where the browser supports it; the plain line before it is
+   the fallback. */
+.disclosure-summary::before {
+    content: "\25B8";
+    content: "\25B8" / "";
+    display: inline-block;
+    /* Larger than the summary's own text: at 12px the glyph is about 5px
+       wide, there but easy to miss, and its whole job is to be seen. */
+    font-size: 1.25em;
+    line-height: 1;
+    margin-right: 0.375rem;
+    transition: transform 150ms ease;
+}
+details[open] > .disclosure-summary::before { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+    .disclosure-summary::before { transition: none; }
+}
+
+.dt-row-btn {
+    padding: 3px 10px;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.dt-row-btn[data-tone="bad"] { background: var(--tone-bad-bg); color: var(--tone-bad-fg); border-color: var(--tone-bad-border); }
+.dt-row-btn[data-tone="bad"]:hover { background: var(--tone-bad-border); }
+.dt-row-btn[data-tone="warn"] { background: var(--tone-warn-bg); color: var(--tone-warn-fg); border-color: var(--tone-warn-border); }
+.dt-row-btn[data-tone="warn"]:hover { background: var(--tone-warn-border); }
+
+/* ---- footer ---- */
+.dt-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.dt-selected-info { color: var(--color-muted); font-size: 0.8125rem; }
+
+.dt-footer-right {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.dt-rows-per-page { display: flex; align-items: center; gap: 6px; }
+
+.dt-footer-label { color: var(--color-ink); font-size: 0.8125rem; font-weight: 500; }
+
+.dt-select-native {
+    height: 30px;
+    padding: 0 6px;
+    border: 1px solid var(--color-line);
+    border-radius: 0.5rem;
+    background: var(--color-canvas);
+    font-size: 0.8125rem;
+    color: var(--color-ink);
+}
+
+.dt-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--color-line);
+    border-radius: 0.5rem;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    cursor: pointer;
+}
+
+.dt-icon-btn:hover:not(:disabled) { background: var(--color-subtle); }
+
+.dt-icon-btn:disabled { opacity: 0.45; cursor: default; }
+
+/* ---- action bar ---- */
+.dt-actionbar {
+    position: fixed;
+    z-index: 60;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--color-line);
+    border-radius: 999px;
+    background: var(--color-canvas);
+    box-shadow: var(--shadow-pop);
+}
+
+/* .hidden is a Tailwind utility and app.css is unlayered, so display:flex
+   above would beat it. This wins it back on specificity (0,2,0 vs 0,1,0). */
+.dt-actionbar.hidden { display: none; }
+
+.dt-actionbar form { display: inline-flex; margin: 0; }
+
+.dt-actionbar-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 12px;
+    border: 1px solid var(--color-line);
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.dt-actionbar-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: 999px;
+    background: none;
+    color: var(--color-muted);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.dt-actionbar-clear:hover { background: var(--color-subtle); color: var(--color-ink); }
+
+.dt-actionbar-sep { width: 1px; height: 20px; background: var(--color-line); }
+
+@media print {
+    /* The bar is a screen control and would print as a floating blob. */
+    .dt-actionbar,
+    .dt-toolbar,
+    .dt-footer { display: none !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dt-btn { transition: none; }
+}
+
+/* ---- Deploy page: three-column layout ------------------------------
+   The pickers grow with the viewport, and the selection summary is a
+   permanent third column. Plain CSS, so no new utilities to build.
+
+   CASCADE NOTE: a bare `display` here would beat .hidden, so every rule
+   below that sets one is :not(.hidden). .deploy-picker-list sets none:
+   renderComputers() toggles .hidden on #batch-computers-list to swap in
+   the empty state. */
+.deploy-grid:not(.hidden) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1024px) {
+    .deploy-grid:not(.hidden) {
+        /* minmax(0,1fr) not 1fr: a long hostname has a wide min-content
+           and would otherwise push its column past the container. */
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 20rem;
+        align-items: start;
+    }
+}
+
+/* The clamp keeps the card inside the viewport on a laptop and still
+   shows ~4 rows on a short window; the chrome subtracted is topbar +
+   card padding + heading + search + footer. */
+.deploy-picker-list {
+    max-height: clamp(16rem, calc(100vh - 22rem), 40rem);
+}
+
+.deploy-rail:not(.hidden) {
+    display: flex;
+    flex-direction: column;
+}
+
+@media (min-width: 1024px) {
+    .deploy-rail:not(.hidden) {
+        /* Matches the pickers so the three columns end on one line, and
+           the button stays reachable while a long list scrolls. */
+        position: sticky;
+        top: 1.5rem;
+        min-height: clamp(20rem, calc(100vh - 16rem), 46rem);
+    }
+    /* Chips can run long; the tally and button must not be pushed out. */
+    #batch-selection {
+        overflow-y: auto;
+    }
+}
+
+/* Pins the toggle + Deploy button to the bottom of the rail. */
+.deploy-rail-foot {
+    margin-top: auto;
+    padding-top: 0.75rem;
+}
+
+/* ---- Deploy page: Uninstall mode ---------------------------------------
+   Plain classes on existing tokens, so no rebuild and both themes
+   follow. NONE sets a display value: the switch, the panel and every row
+   are toggled with .hidden, which an unlayered display rule would beat.
+   Layout comes from the utilities in the markup. */
+.deploy-mode {
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--color-line);
+    border-radius: 0.5rem;
+    background-color: var(--color-subtle);
+}
+.deploy-mode > button {
+    padding: 0.375rem 0.875rem;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-label);
+}
+.deploy-mode > button:hover {
+    color: var(--color-ink);
+}
+.deploy-mode > button:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 1px;
+}
+.deploy-mode > button[aria-pressed="true"] {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    box-shadow: 0 0 0 1px var(--color-line);
+}
+/* The destructive mode reads as such while it is on. */
+.deploy-mode > button[data-deploy-mode="uninstall"][aria-pressed="true"] {
+    background-color: var(--tone-bad-bg);
+    color: var(--tone-bad-fg);
+}
+.deploy-mode-note,
+.deploy-reason,
+.deploy-on {
+    font-size: 0.75rem;
+    color: var(--color-muted);
+}
+.deploy-on {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+/* A greyed row: its text muted, never faded with opacity (which drops a
+   row's contrast below 4.5:1 - the census rule), and a not-allowed cursor. */
+.deploy-row-off,
+.deploy-row-off input {
+    cursor: not-allowed;
+}
+.deploy-row-off {
+    color: var(--color-muted);
+}
+.deploy-subhead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    border-bottom: 1px solid var(--color-line);
+    background-color: var(--color-canvas);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-label);
+}
+.deploy-empty-box {
+    border: 1px dashed var(--color-line);
+    border-radius: 0.5rem;
+    padding: 1.25rem 1rem;
+    text-align: center;
+    font-size: 0.8125rem;
+    color: var(--color-muted);
+}
+.deploy-skip-list {
+    border: 1px solid var(--color-line);
+    border-radius: 0.5rem;
+}
+.deploy-skip-list > li {
+    padding: 0.375rem 0.625rem;
+    font-size: 0.75rem;
+}
+.deploy-skip-list > li + li {
+    border-top: 1px solid var(--color-rule);
+}
+/* The destructive buttons: the rail's and the dialog's confirm. Solid, in
+   the same red as base.html's delete confirm; white on it is 4.83:1 in
+   both themes. */
+.deploy-uninstall-btn {
+    background-color: var(--color-danger-solid);
+    color: var(--color-danger-solid-foreground);
+}
+.deploy-uninstall-btn:hover {
+    opacity: 0.9;
+}
+.deploy-uninstall-btn:disabled {
+    opacity: 0.5;
+}
+/* The alert-dialog's icon tile. Basecoat fills it with --color-muted, which
+   in AppEase is a text grey: a grey slab (the --color-muted collision). Fixed
+   here, at the component, never by retuning the token. 5.3:1 light, 6.19:1
+   dark. Written on the full component path so it out-ranks the neutral
+   tile every alert-dialog gets: (0,2,3) against (0,1,3). */
+.alert-dialog > * > header > figure.deploy-danger-figure {
+    background-color: var(--tone-bad-bg);
+    color: var(--tone-bad-fg);
+}
+@media (min-width: 1024px) {
+    #uninstall-selection {
+        overflow-y: auto;
+    }
+}
+
+/* The full "N apps x N computers = N jobs" sentence deploy-panel.js
+   writes is kept for screen readers; sighted users get the tally rows.
+   Not display:none - that would drop it from the accessibility tree,
+   which is the entire point of keeping it. */
+.deploy-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ---- Settings: the section rail ------------------------------------
+   One tablist laid out vertically, not tabs inside tabs. Stands alone
+   like .deploy-tablist below, so the rail renders even if the compiled
+   .tabs component is missing. .settings-shell is never paired with
+   .hidden. */
+.settings-shell {
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 28px;
+    align-items: start;
+}
+
+.settings-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    /* Stated here, so the rail's width does not depend on a utility in
+       the markup. */
+    width: 100%;
+    gap: 2px;
+    padding: 8px;
+    border: 1px solid var(--color-line, #e8eaf0);
+    border-radius: 12px;
+    background: var(--color-canvas);
+    /* The rail follows a long panel down rather than scrolling away from it.
+       88px clears the sticky topbar. */
+    position: sticky;
+    top: 88px;
+}
+
+.settings-rail > [role="tab"] {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+    padding: 9px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-label, #4b5563);
+    cursor: pointer;
+}
+
+.settings-rail > [role="tab"]:hover {
+    background: var(--color-subtle, #f3f4f6);
+    color: var(--color-ink, #111827);
+}
+
+/* Keyed on [aria-selected], which the controller writes - one source of
+   truth for which section is open, as on the deploy tablist. */
+.settings-rail > [role="tab"][aria-selected="true"] {
+    background: var(--color-subtle, #f3f4f6);
+    color: var(--color-ink, #111827);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--color-primary, #3b6ef6);
+}
+
+.settings-rail > [role="tab"]:focus-visible {
+    outline: 2px solid var(--color-primary, #3b6ef6);
+    outline-offset: -2px;
+}
+
+/* A 232px rail beside a form leaves neither enough room on a narrow
+   window, so it folds to a horizontal strip, marker on the bottom edge. */
+@media (max-width: 1024px) {
+    .settings-shell {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 16px;
+    }
+
+    .settings-rail {
+        flex-direction: row;
+        flex-wrap: wrap;
+        position: static;
+    }
+
+    .settings-rail > [role="tab"] {
+        width: auto;
+    }
+
+    .settings-rail > [role="tab"][aria-selected="true"] {
+        box-shadow: inset 0 -2px 0 var(--color-primary, #3b6ef6);
+    }
+}
+
+/* ---- Deploy page: Basecoat tab + selection styling -----------------
+   Basecoat's tabs markup with no Basecoat JS: deploy-panel.js writes
+   aria-selected and these rules paint it, so there is one source of
+   truth. Stands alone, so it renders even if .tabs is missing from the
+   bundle. */
+.deploy-tablist {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-bottom: 1px solid var(--color-line, #e8eaf0);
+}
+
+.deploy-tablist > [role="tab"] {
+    position: relative;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-muted, var(--color-muted));
+    background: none;
+    border: 0;
+    cursor: pointer;
+    transition: color 120ms ease;
+}
+
+.deploy-tablist > [role="tab"]:hover {
+    color: var(--color-label, #374151);
+}
+
+.deploy-tablist > [role="tab"][aria-selected="true"] {
+    color: var(--color-primary-text, #3b6ef6);
+}
+
+/* The line variant's active underline. -1px so it sits ON the tablist
+   border rather than below it. */
+.deploy-tablist > [role="tab"][aria-selected="true"]::after {
+    content: "";
+    position: absolute;
+    left: 0.5rem;
+    right: 0.5rem;
+    bottom: -1px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--color-primary, #3b6ef6);
+}
+
+.deploy-tablist > [role="tab"]:focus-visible {
+    outline: 2px solid var(--color-primary, #3b6ef6);
+    outline-offset: -2px;
+    border-radius: 0.25rem;
+}
+
+/* Count pill, shared by the tabs and the selection group headings. */
+.deploy-tab-count {
+    display: inline-block;
+    min-width: 1.25rem;
+    padding: 0 0.375rem;
+    border-radius: 999px;
+    background: var(--color-subtle, var(--color-subtle));
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    text-align: center;
+    color: inherit;
+}
+
+.deploy-selection-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--color-muted, var(--color-muted));
+}
+
+/* ---- Deploy page: dialog surfaces ----------------------------------
+   Basecoat's alert-dialog/dialog shape (header > h2 + p, section, footer)
+   without the native <dialog> element: the .modal-open fade above and the
+   inline close timers are built on a div overlay, and showModal() would
+   bypass both. These rules give the Basecoat look on that existing shell. */
+/* border-width/style separate from border-color: setProgressAccent() adds
+   Tailwind's .border-danger / .border-primary to this same element, and a
+   `border:` shorthand here would beat them (app.css loads second, equal
+   specificity) - silently killing the red accent on a failed batch. The
+   compound rules below restore the win to the accent classes. */
+.deploy-dialog {
+    background: var(--color-card, #fff);
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--color-line, #e8eaf0);
+    border-radius: 0.75rem;
+    box-shadow: var(--shadow-dialog);
+
+}
+
+.deploy-dialog > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 1.25rem 1.5rem 0;
+}
+
+.deploy-dialog > header h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--color-ink, var(--color-ink));
+}
+
+.deploy-dialog > header p {
+    margin-top: 0.375rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--color-muted, var(--color-muted));
+}
+
+.deploy-dialog > section {
+    padding: 1rem 1.5rem 0;
+}
+
+.deploy-dialog > footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 1.25rem 1.5rem 1.25rem;
+}
+
+/* The close affordance sits in the header's flex row; -0.25rem pulls it
+   back to the padding edge so it optically aligns with the title. */
+.deploy-dialog-close {
+    flex: none;
+    margin: -0.25rem -0.25rem 0 0;
+}
+
+.deploy-dialog-close svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* Amber caveat, shared by the confirm dialog's offline warning and the
+   progress dialog's offline note. Full border, not a single-sided accent. */
+.deploy-dialog-warning:not(.hidden) {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--tone-warn-fg);
+}
+
+/* ---- Progress component -------------------------------------------
+   Basecoat's .progress is a track with one child span. This keeps two
+   (finished + in-flight), so the track styling is defined here and the
+   segments stay absolutely positioned as they already were. */
+.progress.deploy-bar-track {
+    height: 0.5rem;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--color-subtle, #eef0f4);
+}
+
+.progress.deploy-bar-track > .deploy-bar-seg {
+    background: var(--color-primary, #3b6ef6);
+}
+
+/* Specificity 0,2,0 so the accent beats .deploy-dialog's own border-color. */
+.deploy-dialog.border-primary {
+    border-color: var(--color-primary, #3b6ef6);
+}
+
+.deploy-dialog.border-danger {
+    border-color: var(--color-danger, #dc2626);
+}
+
+/* ---- Notification dropdown -----------------------------------------
+   Severity rides on a small pill and the row surface stays neutral, so
+   several warnings do not read as one solid block.
+
+   Nothing here sets `display` on #notif-panel, where .hidden must keep
+   winning; only on elements inside it, and on .notif-list, which is
+   never toggled. */
+.notif-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--color-rule, #eef0f4);
+}
+
+.notif-head-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-ink, #111827);
+}
+
+.notif-head-title svg {
+    width: 0.875rem;
+    height: 0.875rem;
+    color: var(--color-muted, #9ca3af);
+}
+
+.notif-head-title:hover svg {
+    color: var(--color-ink, #111827);
+}
+
+.notif-newcount {
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    background: var(--color-subtle, #f3f4f6);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--color-muted, #6b7280);
+}
+
+.notif-markread {
+    margin-left: auto;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-muted, #6b7280);
+}
+
+.notif-markread:hover {
+    color: var(--color-primary-text, #3b6ef6);
+}
+
+.notif-filters {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--color-rule, #eef0f4);
+}
+
+/* Keyed on aria-selected, which notifications.js writes. */
+.notif-filter {
+    padding: 0.25rem 0.625rem;
+    border-radius: 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-label, #4b5563);
+}
+
+.notif-filter:hover {
+    background: var(--color-subtle, #f3f4f6);
+}
+
+.notif-filter[aria-selected="true"] {
+    background: var(--color-subtle, #eef2ff);
+    color: var(--color-primary-text, #3b6ef6);
+}
+
+.notif-list {
+    padding: 0.5rem;
+}
+
+.notif-card {
+    padding: 0.75rem;
+    border: 1px solid var(--color-line, #e8eaf0);
+    border-radius: 0.625rem;
+    background: var(--color-card, #fff);
+}
+
+.notif-card + .notif-card {
+    margin-top: 0.5rem;
+}
+
+/* Placeholder row for a filter switch, mirroring .notif-card above - same
+   padding, border, radius and spacing. min-height is the measured height of a
+   real one-line card (74px), so five of these overflow the list's 369px
+   visible box exactly as real rows do and the panel is already at full height
+   when they are replaced. */
+.notif-skeleton-row {
+    padding: 0.75rem;
+    border: 1px solid var(--color-line, #e8eaf0);
+    border-radius: 0.625rem;
+    background: var(--color-card, #fff);
+    min-height: 74px;
+}
+
+.notif-skeleton-row + .notif-skeleton-row {
+    margin-top: 0.5rem;
+}
+
+/* Mirrors .notif-card-meta so the lower pair of bars sits where the severity
+   pill and timestamp sit on a real row. */
+.notif-skeleton-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+/* THE --color-muted COLLISION, as at .choco-results: Basecoat's .skeleton
+   fills with the TEXT grey. Scoped to this list; the token is left alone
+   because `text-muted` depends on it in ~60 places. */
+.notif-list .skeleton {
+    background-color: var(--color-line);
+}
+
+/* Unread is a slightly lifted surface, not a saturated tint. */
+.notif-card.is-unread {
+    background: var(--color-subtle, #f8fafc);
+}
+
+.notif-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+}
+
+.notif-card-msg {
+    flex: 1;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--color-body, #374151);
+}
+
+.notif-card.is-unread .notif-card-msg {
+    font-weight: 500;
+    color: var(--color-ink, #111827);
+}
+
+.notif-card-dot {
+    flex: none;
+    margin-top: 0.3125rem;
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: 999px;
+    background: var(--color-primary, #3b6ef6);
+}
+
+.notif-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.notif-card-time {
+    margin-left: auto;
+    font-size: 0.6875rem;
+    color: var(--color-muted, #9ca3af);
+}
+
+.notif-sev {
+    padding: 0.0625rem 0.4375rem;
+    border-radius: 999px;
+    font-size: 0.625rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+
+/* Literal hex, not Tailwind colour classes: these tints are only ever used
+   here, and a class like bg-red-100 has to survive a rebuild to exist. */
+.notif-sev[data-sev="error"] {
+    background: var(--tone-bad-bg);
+    color: var(--tone-bad-fg);
+}
+
+.notif-sev[data-sev="warning"] {
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-fg);
+}
+
+.notif-sev[data-sev="info"] {
+    background: var(--tone-info-bg);
+    color: var(--tone-info-fg);
+}
+
+.notif-open {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.1875rem 0.5rem;
+    border: 1px solid var(--color-line, #e8eaf0);
+    border-radius: 0.375rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: var(--color-label, #4b5563);
+}
+
+.notif-open:hover {
+    background: var(--color-subtle, #f3f4f6);
+    color: var(--color-ink, #111827);
+}
+
+.notif-open svg {
+    width: 0.6875rem;
+    height: 0.6875rem;
+}
+
+.notif-foot {
+    display: block;
+    padding: 0.625rem 1rem;
+    border-top: 1px solid var(--color-rule, #eef0f4);
+    text-align: center;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-label, #4b5563);
+}
+
+.notif-foot:hover {
+    background: var(--color-subtle, #f3f4f6);
+}
+
+/* Unread dot on the notifications PAGE table (notifications.html). The
+   read variant is a same-size invisible spacer so read and unread rows
+   keep their message text on the same left edge. */
+.notif-unread-dot {
+    display: inline-block;
+    flex: none;
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-radius: 999px;
+    background: var(--color-primary, #3b6ef6);
+}
+
+.notif-unread-dot[data-read] {
+    background: transparent;
+}
+
+/* ---- Profile page ---------------------------------------------------
+   Layout only: the controls themselves are Basecoat.
+
+   app.css is unlayered, so everything here beats Basecoat and Tailwind
+   alike. Nothing sets `display` on a tab panel: panels are toggled with
+   the `hidden` ATTRIBUTE, which a display rule would defeat. */
+
+.profile-headcard {
+    margin-bottom: 1rem;
+}
+
+/* Identity strip inside its own card above the tabs. */
+.profile-identity {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.profile-identity-body {
+    min-width: 0;
+}
+
+.profile-identity-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--color-ink, var(--color-ink));
+}
+
+/* Icon + text facts row. */
+.profile-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem 1.25rem;
+    margin-top: 0.5rem;
+}
+
+.profile-facts li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--color-muted, var(--color-muted));
+}
+
+.profile-facts svg {
+    width: 0.875rem;
+    height: 0.875rem;
+    flex: none;
+}
+
+/* ---- Avatar + upload control --------------------------------------- */
+.profile-avatar-wrap {
+    position: relative;
+    flex: none;
+}
+
+/* A <label>, so clicking it opens the picker with no script. */
+.profile-avatar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 5rem;
+    height: 5rem;
+    border-radius: 999px;
+    background: var(--color-subtle, #eef0f4);
+    color: var(--color-muted, var(--color-muted));
+    font-size: 1.375rem;
+    font-weight: 600;
+    cursor: pointer;
+    overflow: visible;
+}
+
+.profile-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 999px;
+    /* cover, not contain: a non-square upload should fill the circle rather
+       than sit letterboxed inside it. */
+    object-fit: cover;
+}
+
+.profile-avatar img[hidden] {
+    display: none;
+}
+
+/* Camera chip, bottom-right of the circle. */
+.profile-avatar-badge {
+    position: absolute;
+    right: -0.125rem;
+    bottom: -0.125rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    border: 2px solid var(--color-card, #fff);
+    background: var(--color-invert);
+    color: var(--color-invert-foreground);
+}
+
+.profile-avatar-badge svg {
+    width: 0.875rem;
+    height: 0.875rem;
+}
+
+.profile-avatar:hover .profile-avatar-badge {
+    background: var(--color-primary, #4173d8);
+}
+
+/* Focus lands on the visually-hidden input, so the ring is drawn on the
+   avatar it controls. */
+.profile-file:focus-visible + .profile-avatar,
+.profile-avatar:has(.profile-file:focus-visible) {
+    outline: 2px solid var(--color-primary, #4173d8);
+    outline-offset: 2px;
+}
+
+/* Clipped, NOT display:none - display:none drops it out of the tab order
+   and makes the control keyboard-unreachable. */
+.profile-file {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.sr-only-field {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Spinner over the avatar while the auto-submit POST is in flight, laid
+   ON the circle: block children of this flex:none wrap stretch it and
+   push the identity row apart. */
+.profile-avatar-busy {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--color-scrim);
+    color: var(--color-primary-foreground);
+    pointer-events: none;
+}
+
+.profile-avatar-busy.hidden {
+    display: none;
+}
+
+.profile-avatar-busy svg {
+    width: 1.25rem;
+    height: 1.25rem;
+    animation: deploy-spin 900ms linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .profile-avatar-busy svg { animation: none; }
+}
+
+.profile-form + .profile-form {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-rule, #eef0f4);
+}
+
+.profile-form:first-of-type {
+    margin-top: 1.25rem;
+}
+
+.profile-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    margin-top: 0.875rem;
+}
+
+@media (min-width: 768px) {
+    .profile-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .profile-span {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Holds the second column open on the password form so New Password
+   starts a fresh row instead of sitting beside Current Password. */
+.profile-grid-spacer {
+    display: none;
+}
+
+@media (min-width: 768px) {
+    .profile-grid-spacer {
+        display: block;
+    }
+}
+
+.profile-actions {
+    margin-top: 1.25rem;
+}
+
+.profile-error {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--color-danger, var(--tone-bad-fg));
+}
+
+/* Compound selector: .hidden must still win, and app.css being unlayered
+   means a bare .profile-error would otherwise beat it. */
+.profile-error.hidden {
+    display: none;
+}
+
+.profile-hint {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--color-muted, var(--color-muted));
+}
+
+/* ---- Cross-document view transitions ---------------------------------
+   Every sidebar link is a real navigation, and the browser blanks the
+   old page before painting the new one: the flash. This HOLDS the old
+   page until the new one is ready, then cross-fades. Pure CSS: both
+   documents opt in by loading this file, and an unsupporting browser
+   just navigates. Chrome/Edge 126+ and Safari 18.2+; not Firefox.
+
+   qr_labels.html links no stylesheet, so it opts out - correct for a
+   print sheet. */
+@view-transition {
+    navigation: auto;
+}
+
+/* The opt-in is deliberately NOT inside the reduced-motion query below:
+
+   1. Some Chromium builds (Vivaldi, seen here) ignore @view-transition
+      inside a conditional group rule but honour it at the top level.
+
+   2. Holding the old page is not motion, and it is what removes the
+      flash, so everyone gets it; the query only takes the FADE away. */
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation: none;
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    /* The default is 250ms, which reads as sluggish on a LAN where the next
+       page is usually already there. Short enough to feel instant, long
+       enough that it is a fade rather than a cut. */
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+        animation-duration: 160ms;
+    }
+
+    /* The shell is IDENTICAL on every page, and fading it reads as a full
+       reload. Naming these two lifts them out of the root snapshot, and
+       a zero duration makes them persist while only the content fades.
+
+       Each must match exactly ONE element per document: a name matching
+       two aborts the whole transition. A page without them is
+       unaffected. */
+    #app-sidebar {
+        view-transition-name: app-sidebar;
+    }
+
+    .app-topbar {
+        view-transition-name: app-topbar;
+    }
+
+    ::view-transition-group(app-sidebar),
+    ::view-transition-group(app-topbar) {
+        animation-duration: 0s;
+    }
+}
+
+/* ---- What base.html cannot say in utilities -------------------------
+   Plain classes: no bg-destructive / text-destructive-foreground is
+   compiled, and adding one would force a rebuild.
+
+   No `display` on any of them: .skin-badge-pulse and the Log out item are
+   toggled with .hidden. */
+.tone-danger-solid {
+    background-color: var(--color-danger-solid);
+}
+
+.badge-count {
+    background-color: var(--color-danger-solid);
+    color: var(--color-danger-solid-foreground);
+}
+
+.menu-item-danger:hover {
+    background-color: var(--tone-bad-soft);
+}
+
+/* ---- Status pills for deploy-panel.js -------------------------------
+   Built as class strings in JS, which a template scan never sees, and no
+   tone utility is compiled. They read the SAME tone tokens as .dt-pill
+   and .tl-chip, so a job status and an audit severity agree on what red
+   means. No `display`: deploy-panel.js toggles rows with .hidden. */
+.pill-tone-good    { background-color: var(--tone-good-bg);    color: var(--tone-good-fg); }
+.pill-tone-bad     { background-color: var(--tone-bad-bg);     color: var(--tone-bad-fg); }
+.pill-tone-info    { background-color: var(--tone-info-bg);    color: var(--tone-info-fg); }
+.pill-tone-warn    { background-color: var(--tone-warn-bg);    color: var(--tone-warn-fg); }
+.pill-tone-neutral { background-color: var(--tone-neutral-bg); color: var(--tone-neutral-fg); }
+
+.border-warn-strong {
+    border-color: var(--color-warn-strong);
+}
+
+/* Inline validation text and destructive links, in the pills' red so a
+   failed field and a failed job agree. text-red-700 is 2.93:1 on the
+   dark canvas; this is 6.81:1 dark / 5.94:1 on white. */
+.text-tone-bad {
+    color: var(--tone-bad-fg);
+}
+
+.border-tone-bad {
+    border-color: var(--tone-bad-border);
+}
+
+.hover-tone-bad-soft:hover {
+    background-color: var(--tone-bad-soft);
+}
+
+/* Soft type badges: Deploy's Local / Chocolatey labels are a type, not a
+   severity, so they take the soft step rather than the pill fill. */
+.pill-tone-good-soft { background-color: var(--tone-good-soft); color: var(--tone-good-fg); }
+.pill-tone-info-soft { background-color: var(--tone-info-soft); color: var(--tone-info-fg); }
+
+/* Software Library's duplicate banner, the no-JS bounce page. The info
+   text is --tone-info-fg (blue-700): 6.16:1 on the soft step. */
+.banner-tone-warn {
+    background-color: var(--tone-warn-soft);
+    border-color: var(--tone-warn-border);
+    color: var(--tone-warn-fg);
+}
+
+.banner-tone-info {
+    background-color: var(--tone-info-soft);
+    border-color: var(--tone-info-border);
+    color: var(--tone-info-fg);
+}
+
+/* Secondary text in the Software Library dialogs: gray-600 in light,
+   10.46:1 on the dark canvas. No text-ink-soft utility is compiled. */
+.text-ink-soft {
+    color: var(--color-ink-soft);
+}
+
+/* The track behind the Software Library's reading-installer bar. No
+   bg-line utility is compiled. */
+.dropzone-track {
+    background-color: var(--color-line);
+}
+
+/* ---- Root canvas ------------------------------------------------------
+   The authoritative version of the pre-paint rule inlined in base.html's
+   <head>. That one is a hardcoded literal by necessity - it has to paint
+   before this file has loaded - so this restates it from the token and wins
+   by source order once the stylesheet arrives. Keep the two in step. */
+html {
+    background-color: var(--color-canvas, #f1f2f6);
+}
+
+/* The auth pages are the exception: dark, outside the theme. Without
+   this the rule above repaints their root canvas light, which shows on
+   overscroll. The same literal as .auth-stage, deliberately not a
+   token. */
+html.auth-root {
+    background-color: #1e2128;
+}
+
+/* ---- My Recent Activity timeline -------------------------------------
+   Nothing here is toggled with .hidden: the last row's rail line is
+   hidden with visibility, not display.
+
+   The chips read the same --tone-* pairs as .activity-avatar: the
+   dashboard card and this one must agree on what red means, and both
+   follow AUDIT_ACTION_TONES. */
+.profile-timeline {
+    margin-top: 0.25rem;
+}
+
+.tl-day {
+    margin: 0 0 0.25rem;
+    border-bottom: 1px solid var(--color-line, #e6e8ee);
+    padding-bottom: 0.375rem;
+    font-size: 0.75rem;
+    color: var(--color-muted, var(--color-muted));
+}
+
+/* Space above every heading except the first, so the first day sits tight
+   under the card edge but later ones are clearly a new block. */
+.tl-row + .tl-day {
+    margin-top: 0.875rem;
+}
+
+.tl-row {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.625rem 0;
+}
+
+.tl-rail {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+}
+
+.tl-chip {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 1.875rem;
+    height: 1.875rem;
+    border-radius: 999px;
+    background: var(--color-subtle);
+    color: var(--color-ink-soft);
+}
+
+.tl-chip svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+.tl-chip[data-tone="danger"] {
+    background: var(--tone-bad-bg);
+    color: var(--tone-bad-fg);
+}
+
+.tl-chip[data-tone="warn"] {
+    background: var(--tone-warn-bg);
+    color: var(--tone-warn-fg);
+}
+
+.tl-chip[data-tone="info"] {
+    background: var(--tone-info-bg);
+    color: var(--tone-info-fg);
+}
+
+.tl-line {
+    flex: 1;
+    width: 1px;
+    min-height: 0.75rem;
+    margin-top: 0.375rem;
+    background: var(--color-line, #e6e8ee);
+}
+
+/* The last row in the whole card, and the row before a new day heading,
+   both end a run - a line continuing past either implies an entry that is
+   not there. visibility rather than display so the rail keeps its width. */
+.profile-timeline > .tl-row:last-child .tl-line {
+    visibility: hidden;
+}
+
+.tl-body {
+    min-width: 0;
+    flex: 1;
+}
+
+.tl-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.625rem;
+}
+
+.tl-title {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-ink, #1a202c);
+}
+
+.tl-time {
+    flex: none;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    color: var(--color-muted, var(--color-muted));
+}
+
+.tl-detail {
+    margin: 0.1875rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--color-label, var(--color-ink-soft));
+    overflow-wrap: anywhere;
+}
+
+/* ---- My Profile read-only rows --------------------------------------
+   Plain classes, so no rebuild; nothing here is toggled with .hidden. */
+.profile-summary + .profile-summary {
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--color-line, #e6e8ee);
+    padding-top: 1.25rem;
+}
+
+.profile-summary-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.profile-summary-list {
+    display: grid;
+    grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+    column-gap: 1rem;
+    row-gap: 0.5rem;
+    margin: 0.875rem 0 0;
+    font-size: 0.875rem;
+}
+
+.profile-summary-list dt {
+    color: var(--color-muted, var(--color-muted));
+}
+
+.profile-summary-list dd {
+    margin: 0;
+    color: var(--color-ink, #1a202c);
+    overflow-wrap: anywhere;
+}
+
+/* One column on a narrow screen: a 9rem label track next to a long email
+   leaves the value squeezed into a strip. */
+@media (max-width: 640px) {
+    .profile-summary-list {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 0.125rem;
+    }
+
+    .profile-summary-list dd {
+        margin-bottom: 0.625rem;
+    }
+}
+
+/* The current-password check inside the sign-in dialog, tinted and
+   boxed: it is not an edit but the permission to make one. */
+.profile-passcheck {
+    margin-top: 0.25rem;
+    border-radius: 0.5rem;
+    background: var(--color-subtle, #f1f2f6);
+    padding: 0.75rem;
+}
+
+/* Left of the dialog footer buttons: the warning a confirm modal would
+   show after the click, read before it instead. */
+.profile-dialog-note {
+    flex: 1;
+    margin: 0;
+    text-align: left;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--color-muted, var(--color-muted));
+}
+
+.profile-activity {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+/* ---- Avatar images (Basecoat avatar component) ----------------------
+   Basecoat's avatar renders a fallback <span> (initials) as a sibling of the
+   <img>. With both present the initials would show through or sit beside the
+   picture, so the image is laid over the whole circle. Broken images are
+   handled in markup instead of here: an onerror removes the <img>, which
+   reveals the initials underneath rather than leaving an empty circle - CSS
+   alone cannot tell a broken image from a loading one.
+
+   app.css is unlayered, so these beat the component's own rules. */
+.avatar {
+    position: relative;
+    overflow: hidden;
+}
+
+.avatar > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    /* cover, not contain: a non-square upload fills the circle rather than
+       sitting letterboxed inside it. */
+    object-fit: cover;
+    border-radius: inherit;
+}
+
+/* THE --color-muted COLLISION - the generic avatar. Basecoat's
+   `.avatar > span` is `bg-muted text-muted-foreground`, and AppEase holds
+   the SAME value in both keys, so the initials are 1.0:1, invisible. They
+   only show once the image has failed, which hides the problem. Patched
+   here, not by repointing the token. 6.87:1 light / 9.67:1 dark.
+
+   :not(.activity-avatar), not source order: both are (0,2,1) and this
+   sits later, so it would undo the activity card's tones. */
+.avatar:not(.activity-avatar) > span:not(.avatar-badge) {
+    background: var(--color-subtle);
+    color: var(--color-ink-soft);
+}
+
+/* Every alert-dialog's icon tile - the confirm dialogs on the dashboard,
+   Admins, Equipment, Problem Reports and the Software Library. Basecoat fills
+   `.alert-dialog > * > header > figure` with --color-muted, which here is a
+   text grey, so each icon sat on a grey slab: the fifth --color-muted
+   collision. Patched at the component, with the avatar's pairing, and NOT by
+   repointing the token. 6.87:1 light / 9.67:1 dark, like the avatar. A
+   dialog that tints its tile (.deploy-danger-figure) must out-rank this. */
+.alert-dialog > * > header > figure {
+    background-color: var(--color-subtle);
+    color: var(--color-ink-soft);
+}
+
+/* The badge is an overlay, not a fallback - it must stay above the image. */
+.avatar > .avatar-badge {
+    position: relative;
+    z-index: 1;
+}
+
+/* Topbar button: the avatar replaces a 16px glyph, so it needs to match the
+   button's icon box rather than the component's default size. */
+.topbar-avatar {
+    width: 1.5rem;
+    height: 1.5rem;
+}

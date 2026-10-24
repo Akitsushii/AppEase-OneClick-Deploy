@@ -1,0 +1,317 @@
+{% extends 'base.html' %}
+
+{% block title %}Deploy Software - AppEase{% endblock %}
+{% block page_title %}Deploy Software{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('dashboard') }}" class="rounded-md border border-field bg-canvas px-3 py-2 text-sm font-medium text-label hover:bg-subtle">Back to Dashboard</a>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {#- A Basecoat card, as on the dashboard. -#}
+    <section class="card">
+        <header>
+            <h2 class="card-title">Deploy Software</h2>
+            <p id="deploy-description" class="card-description"
+               data-install-text="Pick software and computers to queue jobs."
+               data-uninstall-text="Pick computers, then what AppEase installed on them, to queue uninstalls.">Pick software and computers to queue jobs.</p>
+        </header>
+
+        {% if software_items and computers %}
+        <section>
+            {#- Always opens in Install mode (nothing remembers the other),
+                and switching clears every selection and search. -#}
+            <div class="deploy-mode mt-4 inline-flex" role="group" aria-label="Install or uninstall">
+                <button type="button" data-deploy-mode="install" aria-pressed="true">Install</button>
+                <button type="button" data-deploy-mode="uninstall" aria-pressed="false">Uninstall</button>
+            </div>
+
+            <form id="deploy-batch-form" method="POST" action="{{ url_for('create_batch_deployment_jobs') }}" class="mt-4"
+                  {#- deploy-panel.js reads the icon base path here. -#}
+                  data-icon-base="{{ url_for('static', filename='img/') }}"
+                  {#- Where Close sends the user: the dashboard, where
+                      the queued jobs show. -#}
+                  data-done-url="{{ url_for('dashboard') }}">
+                <input type="hidden" name="target_all_online" id="batch_target_all_online" value="0">
+
+                <div class="deploy-grid gap-4">
+                    <div>
+                        <p class="mb-2 text-sm font-medium text-ink">Software *</p>
+                        <input type="text" id="batch-apps-search" placeholder="Search software..." class="input mb-2 w-full">
+                        <div id="batch-apps-list" class="scrollbar-sm deploy-picker-list divide-y divide-rule overflow-y-auto rounded-lg border border-line">
+                            {% for software in software_items %}
+                                <label class="flex items-center gap-2 px-3 py-2 text-sm text-label" data-category="{{ software['category'] or '' }}">
+                                    <input type="checkbox" name="software_ids" value="{{ software['id'] }}" class="batch-app-checkbox h-4 w-4 rounded border-field text-primary focus:ring-2 focus:ring-primary">
+                                    <span>{{ software["name"] }}{% if software["version"] %} (v{{ software["version"] }}){% endif %}</span>
+                                    {% if software["type"] == "offline" %}
+                                        <span class="pill-tone-info-soft rounded px-2 py-0.5 text-xs font-medium">Local</span>
+                                    {% else %}
+                                        <span class="pill-tone-good-soft rounded px-2 py-0.5 text-xs font-medium">Chocolatey</span>
+                                    {% endif %}
+                                </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div>
+                        <p class="mb-2 text-sm font-medium text-ink">Computers *</p>
+                        {#- Status is a filter, not an accordion:
+                            offline machines, the ones most often
+                            queued for, must not hide behind a
+                            collapsed header. -#}
+                        <div class="tabs deploy-tabs mb-2 w-full">
+                            <nav role="tablist" aria-orientation="horizontal" data-variant="line" aria-label="Filter computers by status" class="deploy-tablist w-full">
+                                <button type="button" data-computer-tab="all" role="tab" aria-selected="true" tabindex="0">All <span class="deploy-tab-count" data-computer-tab-count="all"></span></button>
+                                <button type="button" data-computer-tab="online" role="tab" aria-selected="false" tabindex="-1">Online <span class="deploy-tab-count" data-computer-tab-count="online"></span></button>
+                                <button type="button" data-computer-tab="offline" role="tab" aria-selected="false" tabindex="-1">Offline <span class="deploy-tab-count" data-computer-tab-count="offline"></span></button>
+                            </nav>
+                        </div>
+                        <input type="text" id="batch-computers-search" placeholder="Search computers..." class="input mb-2 w-full">
+                        {#- A SIBLING of the list: regrouping
+                            clears the list's innerHTML, which
+                            would take this with it. -#}
+                        <p id="batch-computers-empty" class="hidden rounded-lg border border-line px-3 py-4 text-center text-xs text-muted">No computers match this filter.</p>
+                        <div id="batch-computers-list" class="scrollbar-sm deploy-picker-list divide-y divide-rule overflow-y-auto rounded-lg border border-line">
+                            {#- data-location drives the grouping
+                                (empty is Unassigned). The device
+                                type span is CLASSED: chips take the
+                                first unclassed span, so they stay
+                                hostname-only. -#}
+                            {% for computer in computers %}
+                                <label class="flex items-center gap-2 px-3 py-2 text-sm text-label" data-location="{{ computer['location'] or '' }}">
+                                    <input type="checkbox" name="computer_hostnames" value="{{ computer['hostname'] }}" data-status="{{ computer['status'] }}" class="batch-computer-checkbox h-4 w-4 rounded border-field text-primary focus:ring-2 focus:ring-primary">
+                                    <span class="h-2 w-2 rounded-full {{ 'bg-online' if computer['status'] == 'online' else 'bg-faint' }}"></span>
+                                    <span>{{ computer["hostname"] }}</span>
+                                    {% if computer["device_type"] %}<span class="text-xs text-muted">{{ computer["device_type"] }}</span>{% endif %}
+                                </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    {#- Third column, always shown: both pickers
+                        scroll, so this is the one place showing the
+                        whole selection, the arithmetic and the
+                        button. Chips mirror the checkboxes, which
+                        stay the source of truth. -#}
+                    <aside class="deploy-rail rounded-lg bg-subtle p-3">
+                        <p class="text-sm font-medium text-ink">Selection</p>
+
+                        <div id="batch-selection" class="scrollbar-sm mt-2">
+                            {#- Two groups (apps x computers), so
+                                a hostname and an app name never
+                                look alike; each hides when empty. -#}
+                            <div id="batch-selection-apps-group" class="hidden">
+                                <p class="deploy-selection-heading">Software <span id="batch-selection-apps-count" class="deploy-tab-count">0</span></p>
+                                <div class="mt-1.5 flex flex-wrap items-start gap-1.5" id="batch-selection-apps"></div>
+                            </div>
+                            <div id="batch-selection-computers-group" class="mt-3 hidden">
+                                <p class="deploy-selection-heading">Computers <span id="batch-selection-computers-count" class="deploy-tab-count">0</span></p>
+                                <div class="mt-1.5 flex flex-wrap items-start gap-1.5" id="batch-selection-computers"></div>
+                            </div>
+                        </div>
+                        <p id="batch-selection-empty" class="mt-2 text-xs text-muted-foreground">Nothing selected yet.</p>
+
+                        {#- Rows, so the job total sits above
+                            the button; the sentence stays for
+                            screen readers. -#}
+                        <p id="batch-count-label" class="deploy-sr">0 software items × 0 computers = 0 jobs</p>
+                        <dl class="deploy-tally mt-3 border-t border-line pt-3 text-xs">
+                            <div class="flex items-center justify-between">
+                                <dt class="text-muted">Software</dt>
+                                <dd id="batch-tally-apps" class="font-medium text-ink">0</dd>
+                            </div>
+                            <div class="mt-1 flex items-center justify-between">
+                                <dt class="text-muted">Computers</dt>
+                                <dd id="batch-tally-computers" class="font-medium text-ink">0</dd>
+                            </div>
+                            <div class="mt-1 flex items-center justify-between border-t border-line pt-1">
+                                <dt class="text-muted">Jobs</dt>
+                                <dd id="batch-tally-jobs" class="font-medium text-ink">0</dd>
+                            </div>
+                        </dl>
+
+                        <div class="deploy-rail-foot">
+                            <label class="flex items-center gap-2 text-xs font-medium text-label">
+                                <input type="checkbox" id="batch_all_online_toggle" class="h-4 w-4 rounded border-field text-primary focus:ring-2 focus:ring-primary">
+                                All online computers
+                            </label>
+                            <button type="submit" id="batch-deploy-button" class="btn mt-2 w-full">Deploy</button>
+                        </div>
+                    </aside>
+                </div>
+            </form>
+
+            {#- Filled by uninstall-panel.js from /api/uninstall-candidates
+                with textContent only: every name came from a library form or
+                a lab PC. Computers first, since they decide what can be
+                removed; retired ones are left out, as in Install mode. -#}
+            <div id="uninstall-panel" class="hidden"
+                 data-candidates-url="{{ url_for('uninstall_candidates') }}"
+                 data-submit-url="{{ url_for('create_uninstall_jobs') }}">
+                <p class="deploy-mode-note mt-3">Only what AppEase installed is listed, and only computers that are online now and whose agent can remove it. Nothing is queued for later.</p>
+                <p id="uninstall-status" class="mt-3 text-xs text-muted hidden" role="status"></p>
+                <div class="deploy-grid mt-3 gap-4">
+                    <div>
+                        <p class="mb-2 text-sm font-medium text-ink">Computers * <span id="uninstall-computers-count" class="font-normal text-muted"></span></p>
+                        <input type="text" id="uninstall-computers-search" placeholder="Search computers..." aria-label="Search computers" class="input mb-2 w-full">
+                        <p id="uninstall-computers-empty" class="deploy-empty-box hidden"></p>
+                        <div id="uninstall-computers-list" class="scrollbar-sm deploy-picker-list overflow-y-auto rounded-lg border border-line"></div>
+                    </div>
+
+                    <div>
+                        <p class="mb-2 text-sm font-medium text-ink">Installed by AppEase *</p>
+                        <input type="text" id="uninstall-programs-search" placeholder="Search programs..." aria-label="Search programs" class="input mb-2 w-full">
+                        <p id="uninstall-programs-empty" class="deploy-empty-box mb-2 hidden"></p>
+                        <div id="uninstall-programs-list" class="scrollbar-sm deploy-picker-list overflow-y-auto rounded-lg border border-line hidden"></div>
+                    </div>
+
+                    <aside class="deploy-rail rounded-lg bg-subtle p-3">
+                        <p class="text-sm font-medium text-ink">Selection</p>
+                        <div id="uninstall-selection" class="scrollbar-sm mt-2 hidden">
+                            <div id="uninstall-selection-programs-group" class="hidden">
+                                <p class="deploy-selection-heading">Programs <span id="uninstall-selection-programs-count" class="deploy-tab-count">0</span></p>
+                                <div id="uninstall-selection-programs" class="mt-1.5 flex flex-wrap items-start gap-1.5"></div>
+                            </div>
+                            <div id="uninstall-selection-computers-group" class="mt-3 hidden">
+                                <p class="deploy-selection-heading">Computers <span id="uninstall-selection-computers-count" class="deploy-tab-count">0</span></p>
+                                <div id="uninstall-selection-computers" class="mt-1.5 flex flex-wrap items-start gap-1.5"></div>
+                            </div>
+                        </div>
+                        <p id="uninstall-selection-empty" class="mt-2 text-xs text-muted-foreground">Nothing selected yet.</p>
+                        <dl class="deploy-tally mt-3 border-t border-line pt-3 text-xs">
+                            <div class="flex items-center justify-between">
+                                <dt class="text-muted">Programs</dt>
+                                <dd id="uninstall-tally-programs" class="font-medium text-ink">0</dd>
+                            </div>
+                            <div class="mt-1 flex items-center justify-between">
+                                <dt class="text-muted">Computers</dt>
+                                <dd id="uninstall-tally-computers" class="font-medium text-ink">0</dd>
+                            </div>
+                            <div class="mt-1 flex items-center justify-between">
+                                <dt class="text-muted">Skipped</dt>
+                                <dd id="uninstall-tally-skipped" class="font-medium text-ink">0</dd>
+                            </div>
+                            <div class="mt-1 flex items-center justify-between border-t border-line pt-1">
+                                <dt class="text-muted">Uninstall jobs</dt>
+                                <dd id="uninstall-tally-jobs" class="font-medium text-ink">0</dd>
+                            </div>
+                        </dl>
+                        <div class="deploy-rail-foot">
+                            <button type="button" id="uninstall-button" class="btn deploy-uninstall-btn mt-2 w-full" disabled>Uninstall&hellip;</button>
+                        </div>
+                    </aside>
+                </div>
+            </div>
+
+            <div id="batch-modal-overlay" class="deploy-backdrop hidden fixed inset-0 z-50 flex items-center justify-center">
+                <div id="batch-modal-panel" class="deploy-dialog w-full max-w-md" role="alertdialog" aria-modal="true" aria-labelledby="batch-modal-title" aria-describedby="batch-modal-message">
+                    <header>
+                        <h2 id="batch-modal-title"></h2>
+                        <p id="batch-modal-message"></p>
+                    </header>
+                    {#- Its own region: a caveat, which screen
+                        readers should not read as part of the
+                        question. -#}
+                    <section>
+                        <p id="batch-modal-warning" class="deploy-dialog-warning hidden" role="status"></p>
+                    </section>
+                    <footer>
+                        <button type="button" id="batch-modal-cancel" class="btn" data-variant="outline">Cancel</button>
+                        <button type="button" id="batch-modal-confirm" class="btn">OK</button>
+                    </footer>
+                </div>
+            </div>
+
+            <div id="deploy-progress-overlay" class="deploy-backdrop hidden fixed inset-0 z-50 flex items-center justify-center">
+                <div id="deploy-progress-panel" class="deploy-dialog w-full max-w-lg" role="dialog" aria-modal="true" aria-labelledby="deploy-progress-title">
+                    <header>
+                        <h2 id="deploy-progress-title">Deploying</h2>
+                        <button type="button" id="deploy-progress-dismiss" class="btn deploy-dialog-close" data-variant="ghost" data-size="icon-sm" aria-label="Close">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x" aria-hidden="true"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+                        </button>
+                    </header>
+
+                    <section>
+                        {#- The translucent span is the in-flight
+                            count, so the bar is not stuck at 0%
+                            while agents work. -#}
+                        <div id="deploy-progress-track" class="progress deploy-bar-track" role="progressbar" aria-labelledby="deploy-progress-count" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                            <span id="deploy-progress-active" class="deploy-bar-seg deploy-bar-seg-active" style="width: 0%"></span>
+                            <span id="deploy-progress-bar" class="deploy-bar-seg" style="width: 0%"></span>
+                        </div>
+
+                        <p id="deploy-progress-count" class="mt-3 text-sm font-medium"></p>
+                        <p id="deploy-progress-breakdown" class="mt-1 text-xs text-muted-foreground"></p>
+                        <p id="deploy-progress-note" class="deploy-dialog-warning mt-2 hidden" role="status"></p>
+
+                        <div id="deploy-progress-list" class="scrollbar-sm mt-4 max-h-80 overflow-y-auto rounded-lg border"></div>
+
+                        {#- An uninstall batch's skipped rows:
+                            never jobs, so no poll shows them. -#}
+                        <div id="deploy-progress-skipped" class="mt-3 hidden">
+                            <p class="text-xs font-medium text-label">Not queued (<span id="deploy-progress-skipped-count">0</span>)</p>
+                            <ul id="deploy-progress-skipped-list" class="deploy-skip-list mt-2"></ul>
+                        </div>
+
+                        {#- The .deploy-heartbeat class hooks
+                            are what the poll logic drives. -#}
+                        <div class="mt-3 flex items-center gap-2">
+                            <span id="deploy-progress-beat" class="deploy-heartbeat" role="status" aria-label="Waiting for agent check-in">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-loader-circle" aria-hidden="true"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                            </span>
+                            <p id="deploy-progress-hint" class="text-xs text-muted-foreground"></p>
+                        </div>
+                    </section>
+
+                    <footer>
+                        <button type="button" id="deploy-progress-resume" class="btn hidden" data-variant="outline">Resume updates</button>
+                        <button type="button" id="deploy-progress-close" class="btn">Close</button>
+                    </footer>
+                </div>
+            </div>
+
+            {#- The real destructive click: the solid red button and a tinted
+                icon. Filled by uninstall-panel.js with textContent. -#}
+            <dialog id="uninstall-confirm" class="alert-dialog" aria-labelledby="uninstall-confirm-title" aria-describedby="uninstall-confirm-desc">
+                <div>
+                    <header>
+                        <figure class="deploy-danger-figure"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></figure>
+                        <h2 id="uninstall-confirm-title">Uninstall?</h2>
+                        <div id="uninstall-confirm-desc">
+                            <ul id="uninstall-confirm-programs" class="mt-3 space-y-1 text-sm"></ul>
+                            <div id="uninstall-confirm-skipped-wrap" class="hidden">
+                                <p class="mt-3 text-xs font-medium text-label">Skipped (<span id="uninstall-confirm-skipped-count">0</span>)</p>
+                                <ul id="uninstall-confirm-skipped" class="deploy-skip-list mt-2"></ul>
+                            </div>
+                            <p class="mt-3 text-xs text-muted">Some uninstallers may restart the PC. Offline computers are not queued: an uninstall whose computer goes offline before its agent picks it up is cancelled.</p>
+                        </div>
+                    </header>
+                    <footer>
+                        <button type="button" id="uninstall-confirm-cancel" class="btn" data-variant="outline">Cancel</button>
+                        <button type="button" id="uninstall-confirm-ok" class="btn deploy-uninstall-btn">Uninstall</button>
+                    </footer>
+                </div>
+            </dialog>
+
+        </section>
+        {% else %}
+        <section>
+            <p class="text-sm text-muted-foreground">Add at least one software item and one computer first.</p>
+        </section>
+        {% endif %}
+    </section>
+</div>
+
+{#- Only the error toast: a successful queue redirects to the dashboard,
+    which raises the success toast. -#}
+{% if deploy_error %}
+    <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ deploy_error | tojson }}, 'error'); });</script>
+{% endif %}
+
+{#- A static file, so the browser caches it. -#}
+<script defer src="{{ url_for('static', filename='js/deploy-panel.js') }}"></script>
+{#- After deploy-panel.js, which it calls through window.AppEaseDeploy; defer
+    keeps the two in this order. -#}
+<script defer src="{{ url_for('static', filename='js/uninstall-panel.js') }}"></script>
+{% endblock %}

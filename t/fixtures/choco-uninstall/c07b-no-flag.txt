@@ -1,0 +1,47 @@
+Chocolatey v2.7.3
+3 validations performed. 2 success(es), 1 warning(s), and 0 error(s).
+
+Validation Warnings:
+ - A pending system reboot request has been detected, however, this is
+   being ignored due to the current Chocolatey configuration.  If you
+   want to halt when this occurs, then either set the global feature
+   using:
+     choco feature enable --name="exitOnRebootDetected"
+   or pass the option --exit-when-reboot-detected.
+
+Uninstalling the following packages:
+vlc.install
+
+vlc.install v3.0.24
+Uninstalling vlc.install...
+WARNING: May not be able to find 'C:\Program Files\VideoLAN\VLC\uninstall.exe'. Please use full path for executables.
+ERROR: Exception calling "Start" with "0" argument(s): "The system cannot find the file specified"
+vlc.install uninstall not successful.
+Error while running 'C:\ProgramData\chocolatey\lib\vlc.install\tools\chocolateyUninstall.ps1'.
+ See log for details.
+vlc.install not uninstalled. An error occurred during uninstall:
+ vlc.install uninstall not successful.
+
+Chocolatey uninstalled 0/1 packages. 1 packages failed.
+ See the log for details (C:\ProgramData\chocolatey\logs\chocolatey.log).
+
+Failures
+ - vlc.install (exited -1) - Error while running 'C:\ProgramData\chocolatey\lib\vlc.install\tools\chocolateyUninstall.ps1'.
+ See log for details.
+
+If a package uninstall is failing and/or you've already uninstalled the
+ software outside of Chocolatey, you can attempt to run the command
+ with `-n` to skip running a chocolateyUninstall script, additionally
+ adding `--skip-autouninstaller` to skip an attempt to automatically
+ remove system-installed software. Only the packaging files are removed
+ and not things like software installed to Programs and Features.
+
+If a package is failing because it is a dependency of another package
+ or packages, then you may first need to consider if it needs to be
+ removed as packages have dependencies for a reason. If
+ you decide that you still want to remove it, head into
+ `$env:ChocolateyInstall\lib` and find the package folder you want to
+ be removed. Then delete the folder for the package. You should use
+ this option only as a last resort.
+ 
+-1 

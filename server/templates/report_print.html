@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {#- Pre-paint pair, as in base.html (not extended here). Both sit
+        ABOVE any stylesheet: they cover the gap before one loads. Without
+        the meta a dark-mode OS paints its canvas dark; without the rule the
+        root has no colour (the background is on <body>). -#}
+    <meta name="color-scheme" content="light">
+    <style>html { background-color: #f1f2f6; }</style>
+    <title>Problem Report #{{ report['id'] }} - AppEase</title>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/appease-appiconv2.svg') }}">
+    {#- app.css is linked ONLY for its @font-face. The rest is plain CSS
+        below: a printed page must not depend on a rebuilt tailwind.css,
+        where a missing class fails silently on paper. -#}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: #f1f2f6;
+            color: #111827;
+            font-family: 'Outfit', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.55;
+        }
+        .toolbar {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 18px 20px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .toolbar a, .toolbar button {
+            font: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            color: #374151;
+            background: #fff;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 7px 14px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .toolbar button { background: #2f68dd; border-color: #2f68dd; color: #fff; }
+        .sheet {
+            max-width: 760px;
+            margin: 18px auto 60px;
+            background: #fff;
+            border: 1px solid #e8eaf0;
+            border-radius: 10px;
+            padding: 40px 44px;
+        }
+        .title { font-size: 19px; font-weight: 700; margin: 0 0 2px; letter-spacing: -0.01em; }
+        .sub { font-size: 11px; color: #6b7280; margin: 0 0 20px; }
+        hr.rule { border: 0; border-top: 1px solid #d1d5db; margin: 18px 0; }
+        .h { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+             color: #6b7280; margin: 0 0 8px; }
+        dl.kv { display: grid; grid-template-columns: 150px 1fr; gap: 5px 12px; margin: 0; }
+        dl.kv dt { color: #6b7280; }
+        dl.kv dd { margin: 0; }
+        p.body { margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; }
+        .muted { color: #6b7280; }
+        .photos { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+        .photos img {
+            width: 210px; height: 158px; object-fit: cover;
+            border: 1px solid #d1d5db; border-radius: 6px;
+        }
+        .sig { display: flex; gap: 40px; margin-top: 34px; }
+        .sig div { flex: 1; }
+        .sigline { border-top: 1px solid #9ca3af; margin-top: 42px; padding-top: 5px;
+                   color: #6b7280; font-size: 10px; }
+
+        @media print {
+            /* The sheet becomes the page. .noprint is explicit rather than
+               relying on app.css's print block. */
+            .noprint { display: none !important; }
+            body { background: #fff; font-size: 11px; }
+            .sheet {
+                max-width: none; margin: 0; border: none; border-radius: 0; padding: 0;
+            }
+            .photos img { width: 170px; height: 128px; }
+            /* Keep a field and its heading together across a page break. */
+            .block { break-inside: avoid; page-break-inside: avoid; }
+            a { text-decoration: none; color: inherit; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar noprint">
+        <a href="{{ url_for('problem_reports_page') }}">&larr; Back to Problem Reports</a>
+        <button type="button" onclick="window.print()">Print this sheet</button>
+    </div>
+
+    <div class="sheet">
+        <p class="title">Problem Report #{{ report['id'] }}</p>
+        <p class="sub">AppEase &middot; BulSU Meneses Campus &middot; printed {{ printed_at }}</p>
+
+        <div class="block">
+            <p class="h">Machine</p>
+            <dl class="kv">
+                <dt>Computer</dt>
+                <dd>{{ report['computer_hostname'] }}</dd>
+                <dt>Location</dt>
+                <dd>{% if report['computer_location'] %}{{ report['computer_location'] }}{% else %}<span class="muted">Unassigned</span>{% endif %}</dd>
+                <dt>Device type</dt>
+                <dd>{% if report['computer_device_type'] %}{{ report['computer_device_type'] }}{% else %}<span class="muted">Not set</span>{% endif %}</dd>
+                <dt>IP address</dt>
+                <dd>{{ report['computer_ip'] or '-' }}</dd>
+            </dl>
+        </div>
+
+        <hr class="rule">
+
+        <div class="block">
+            <p class="h">Report</p>
+            <dl class="kv">
+                <dt>Problem type</dt>
+                <dd>{{ report['problem_type'] | capitalize }}</dd>
+                <dt>Priority</dt>
+                <dd>{{ report['priority'] | capitalize }}</dd>
+                <dt>Reported</dt>
+                <dd>{{ report['reported_at'] | manila }}</dd>
+                <dt>Reported by</dt>
+                <dd>
+                    {%- if report['reporter_name'] -%}
+                        {{ report['reporter_name'] }}{% if report['reporter_role'] %} ({{ report['reporter_role'] | capitalize }}){% endif %}
+                    {%- else -%}
+                        <span class="muted">Not recorded</span>
+                    {%- endif -%}
+                </dd>
+                {#- Student number, section and year exist only for a
+                    student report, so the row is omitted rather than
+                    printed empty. -#}
+                {% if report['reporter_student_number'] or report['reporter_program'] or report['reporter_section'] or report['reporter_year_level'] %}
+                    <dt>Student details</dt>
+                    <dd>
+                        {{ report['reporter_student_number'] or '' }}{% if report['reporter_program'] %} &middot; {{ report['reporter_program'] }}{% endif %}{% if report['reporter_section'] %} &middot; {{ report['reporter_section'] }}{% endif %}{% if report['reporter_year_level'] %} &middot; {{ report['reporter_year_level'] }}{% endif %}
+                    </dd>
+                {% endif %}
+            </dl>
+            <p class="h" style="margin-top: 16px;">Description</p>
+            <p class="body">{{ report['description'] or '' }}</p>
+        </div>
+
+        <hr class="rule">
+
+        <div class="block">
+            <p class="h">Handling</p>
+            <dl class="kv">
+                <dt>Status</dt>
+                <dd>{{ report['status'] | report_status }}</dd>
+                <dt>Status changed</dt>
+                <dd>{% if report['status_changed_at'] %}{{ report['status_changed_at'] | manila }}{% else %}<span class="muted">Not changed since this was recorded</span>{% endif %}</dd>
+                <dt>Assigned to</dt>
+                <dd>
+                    {%- if report['assigned_to'] -%}
+                        {{ report['assigned_first_name'] | format_name(report['assigned_middle_initial'], report['assigned_last_name']) }}
+                    {%- else -%}
+                        <span class="muted">Unassigned</span>
+                    {%- endif -%}
+                </dd>
+            </dl>
+        </div>
+
+        <div class="block">
+            <p class="h" style="margin-top: 18px;">Notes</p>
+            <p class="body">{% if report['notes'] %}{{ report['notes'] }}{% else %}<span class="muted">No notes.</span>{% endif %}</p>
+        </div>
+
+        <div class="block">
+            <p class="h" style="margin-top: 18px;">What was done</p>
+            <p class="body">{% if report['resolution_notes'] %}{{ report['resolution_notes'] }}{% else %}<span class="muted">Not recorded yet.</span>{% endif %}</p>
+        </div>
+
+        {#- Photos print larger than the 72px Details thumbnails, and are
+            omitted entirely when there are none. -#}
+        {% if report['photo_urls'] %}
+            <hr class="rule">
+            <div class="block">
+                <p class="h">Attached photos</p>
+                <div class="photos">
+                    {% for url in report['photo_urls'] %}
+                        <img src="{{ url }}" alt="Photo attached to report {{ report['id'] }}">
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        <div class="sig block">
+            <div><div class="sigline">Technician signature / date</div></div>
+            <div><div class="sigline">Received by / date</div></div>
+        </div>
+    </div>
+</body>
+</html>

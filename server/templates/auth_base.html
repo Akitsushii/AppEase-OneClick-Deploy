@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+{#- Shell for the auth pages, so the pre-paint pair below exists once.
+    auth-root, a class on <html> (:has() is ruled out for anything
+    load-bearing), lets app.css give them a dark root canvas. -#}
+<html lang="en" class="auth-root">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {#- Pre-paint pair, painting the DARK stage colour: the light canvas
+        would swap a black flash for a white one. Both stay ABOVE any
+        stylesheet, which cannot reach the gap before it loads.
+
+        #1e2128 matches .auth-stage and .auth-brand-panel in app.css, copied
+        on purpose: a borrowed token once changed meaning and left a white
+        card on a white page. Change one, change the other. -#}
+    <meta name="color-scheme" content="light">
+    <style>html { background-color: #1e2128; }</style>
+    <title>{% block title %}AppEase{% endblock %}</title>
+    <link rel="preload" href="{{ url_for('static', filename='fonts/Outfit-Variable.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/appease-appiconv2.svg') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/appease-appicon-32v2.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/appease-appicon-180v2.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+{#- STANDING HAZARD respected: this does NOT extend base.html, so the dark
+    surface is set here directly rather than borrowed from a token. -#}
+<body class="auth-stage font-sans">
+    {#- Rendered twice (panel foot, and under the help block when the
+        panel is hidden) from one literal. |safe because it is a constant
+        with HTML entities, never anything from a request. -#}
+    {%- set AUTH_LEGAL = "&copy; 2026 AppEase &middot; All rights reserved" -%}
+    {#- One layout for every auth page: a layout attribute's scoped
+        selectors would outrank the 880px media query. -#}
+    <div class="auth-split">
+        {#- Brand panel, aria-hidden: decorative, so a screen reader is not
+            read the wordmark on every page. Only app.css changes its look
+            between layouts. -#}
+        <aside class="auth-brand-panel" aria-hidden="true">
+            <div class="auth-brand">
+                <img src="{{ url_for('static', filename='img/appease-appiconv2.svg') }}"
+                     alt="" width="40" height="40" class="auth-brand-mark">
+                <span>
+                    <span class="auth-brand-name">AppEase</span>
+                    <span class="auth-brand-campus">BulSU Meneses Campus</span>
+                </span>
+            </div>
+
+            {#- A page fills EITHER brand_lede OR brand_features, never
+                both; neither has a default, so a page overriding nothing
+                gets only the headline. -#}
+            <div class="auth-brand-mid">
+                <p class="auth-headline">{% block headline %}{% endblock %}</p>
+                {#- One line, like the footer below: .auth-brand-lede:empty
+                    collapses it on login, and :empty does not match an element
+                    containing whitespace. -#}
+                <p class="auth-brand-lede">{% block brand_lede %}{% endblock %}</p>
+                {% block brand_features %}{% endblock %}
+            </div>
+
+            <p class="auth-brand-legal">{{ AUTH_LEGAL|safe }}</p>
+        </aside>
+
+        <main class="auth-form-panel">
+            <div class="auth-form-inner">
+                {#- Carries the branding once the panel beside it is hidden.
+                    Shown by the 880px rule in app.css, not by script. -#}
+                <div class="auth-compact-brand">
+                    <img src="{{ url_for('static', filename='img/appease-appiconv2.svg') }}"
+                         alt="" width="32" height="32">
+                    <span>AppEase</span>
+                </div>
+
+                {#- The card holds heading, form and foot: pages with no
+                    form (a sent reset, a dead link) still show their message
+                    in a card, not a heading floating on white. -#}
+                <div class="auth-form-card">
+                    <header class="auth-head">
+                        <h1>{% block heading %}{% endblock %}</h1>
+                        <p>{% block helper %}{% endblock %}</p>
+                    </header>
+
+                    {#- A page with nothing to submit renders its message here
+                        instead of a form. -#}
+                    {% block form %}{% endblock %}
+
+                    {#- One line on purpose: .auth-foot:empty hides it,
+                        and :empty fails on whitespace. -#}
+                    <footer class="auth-foot">{% block foot %}{% endblock %}</footer>
+
+                    {#- Plain text, NOT a link: there is no support
+                        address to point at, and a link that does nothing is
+                        worse than none. -#}
+                    <div class="auth-help">
+                        <p>Need help accessing your account?</p>
+                        <p>Contact the Computer Technician of BulSU Meneses</p>
+                    </div>
+                </div>
+
+                {#- The panel's copyright again, for widths where the panel
+                    is hidden (a phone opening forgot_password); app.css
+                    shows exactly one. -#}
+                <p class="auth-legal-compact">{{ AUTH_LEGAL|safe }}</p>
+            </div>
+        </main>
+    </div>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

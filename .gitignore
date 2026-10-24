@@ -1,0 +1,80 @@
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Database
+# The bare *.db is not enough: WAL mode (PRAGMA journal_mode=WAL in
+# database.py) creates two sidecar files next to it, and neither matches
+# *.db. Committing a stale -wal alongside a .db is worse than committing
+# neither, since together they are a half-applied transaction log.
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.db.backup
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# User-uploaded content. None of this is source, and all of it is either
+# licensed software or personal data belonging to staff and students.
+server/uploads/*
+server/staging/*
+server/static/report_photos/*
+server/static/avatars/*
+
+# Keep the folders themselves but ignore their contents.
+!server/uploads/.gitkeep
+!server/staging/.gitkeep
+!server/static/report_photos/.gitkeep
+!server/static/avatars/.gitkeep
+
+# Environment variables (SMTP credentials, API keys)
+.env
+.env.*
+!.env.example
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# OS junk
+.DS_Store
+desktop.ini
+
+# Tailwind standalone CLI binary (~100 MB, re-downloadable)
+tailwindcss.exe
+
+# Node, only if the toolchain ever moves off the standalone CLI
+node_modules/
+
+# Logs
+*.log
+
+# Claude Code's local override file: personal config, which Claude Code
+# writes to itself.
+.claude/settings.local.json
+
+# Windows thumbnail cache, the counterpart to desktop.ini above.
+Thumbs.db
+
+# PyInstaller, if the agent is ever bundled into an .exe for the lab rollout.
+build/
+dist/
+*.spec
+
+# Cloudflare Tunnel. cloudflared keeps these in %USERPROFILE%\.cloudflared,
+# never here, but a copy dropped into the project must not be committed:
+# cert.pem and the <tunnel-id>.json credentials let anyone run the tunnel,
+# and config.yml names the public hostname.
+.cloudflared/
+cloudflared/
+cloudflared.exe
+*.pem
+????????-????-????-????-????????????.json
+config.yml
+config.yaml

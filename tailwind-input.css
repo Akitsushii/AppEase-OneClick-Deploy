@@ -1,0 +1,167 @@
+/* AppEase — Tailwind build input.
+   Compiled to server/static/css/tailwind.css by build-css.bat.
+   Do not edit the compiled output; edit this file. tailwind.config.js
+   is not read by the v4 build.
+
+   v4 wraps its output in @layer theme, base, components, utilities.
+   app.css is a SEPARATE stylesheet, not run through this build and NOT
+   layered, so any rule in it beats every layered rule here regardless
+   of specificity - which is why a `display` in app.css can beat
+   `.hidden`. */
+
+/* This file sits at the project root, where build-css.bat runs, and
+   @source paths resolve relative to it. */
+
+@import "tailwindcss";
+
+@source "server/templates/**/*.html";
+@source "server/static/js/**/*.js";
+/* Forces these utilities to compile though no template writes them:
+   app.css reads --color-sidebar-primary(-foreground) only via var(), and
+   v4 drops a theme variable no scanned utility uses. Any custom property
+   read only through var() in app.css has the same risk. */
+@source inline("bg-sidebar-primary text-sidebar-primary-foreground");
+
+/* BASECOAT, vendored as source: basecoat.css uses @apply, so it must
+   compile in the SAME pass as "tailwindcss" above. It is the npm
+   package's base/base.css + basecoat-components.css + styles/vega.css,
+   concatenated whole, since hand-picking missed files.
+
+   It loads BEFORE the @theme below: later @theme declarations win per
+   key, so AppEase's tokens keep their values, and Basecoat's other keys
+   pass through with its defaults.
+
+   THE --color-muted COLLISION: AppEase's --color-muted is a TEXT colour
+   (`text-muted`, in dozens of places), while Basecoat's components read
+   the same key as a BACKGROUND (.tabs, .table tfoot, .skeleton, .avatar,
+   .progress, .command hover). Fix it locally in app.css for each
+   component adopted, never globally. */
+@import "./basecoat.css";
+
+@theme {
+  /* A TweakCN theme merged into AppEase's own token names: the shadcn
+     keys are additions, and where a concept overlaps, AppEase's name
+     keeps working (text-muted, bg-canvas, text-ink, border-field). */
+
+  --font-sans: 'Outfit', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* JetBrains Mono is not vendored, so font-mono (the technical
+     columns) falls back to ui-monospace. Nothing uses font-serif. */
+  --font-serif: Merriweather, ui-serif, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+  /* Radius: one --radius with every step derived from it. 2xl (+8px) is
+     AppEase's own extension; the theme defines none. */
+  --radius: 0.75rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  /* AppEase's own shadows, named apart from the shadow-* scale below. */
+  --shadow-card: 0 1px 2px 0 rgb(16 24 40 / 0.04), 0 1px 3px 0 rgb(16 24 40 / 0.06);
+  --shadow-card-hover: 0 2px 4px -1px rgb(16 24 40 / 0.06), 0 4px 8px -2px rgb(16 24 40 / 0.08);
+  --shadow-raised: 0 4px 6px -2px rgb(16 24 40 / 0.05), 0 12px 16px -4px rgb(16 24 40 / 0.10);
+  /* The theme's offset hard-shadow scale. */
+  --shadow-2xs: 4px 4px 0px -2px hsl(0 0% 1.1765% / 0.03);
+  --shadow-xs: 4px 4px 0px -2px hsl(0 0% 1.1765% / 0.03);
+  --shadow-sm: 4px 4px 0px -2px hsl(0 0% 1.1765% / 0.05), 4px 1px 2px -3px hsl(0 0% 1.1765% / 0.05);
+  --shadow-md: 4px 4px 0px -2px hsl(0 0% 1.1765% / 0.05), 4px 2px 4px -3px hsl(0 0% 1.1765% / 0.05);
+  --shadow-lg: 4px 4px 0px -2px hsl(0 0% 1.1765% / 0.05), 4px 4px 6px -3px hsl(0 0% 1.1765% / 0.05);
+  --shadow-xl: 4px 4px 0px -2px hsl(0 0% 1.1765% / 0.05), 4px 8px 10px -3px hsl(0 0% 1.1765% / 0.05);
+  --shadow-2xl: 4px 4px 0px -2px hsl(0 0% 1.1765% / 0.13);
+
+  --tracking-normal: 0rem;
+  --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
+  --tracking-tight: calc(var(--tracking-normal) - 0.025em);
+  --tracking-wide: calc(var(--tracking-normal) + 0.025em);
+  --tracking-wider: calc(var(--tracking-normal) + 0.05em);
+  --tracking-widest: calc(var(--tracking-normal) + 0.1em);
+
+  /* Primary: the theme's blue, behind every text-/bg-/border-primary. */
+  --color-primary: #4173d8;
+  --color-primary-foreground: #ffffff;
+  --color-ring: #d87943;
+
+  /* Standard shadcn tokens. */
+  --color-background: #ffffff;
+  --color-foreground: #111827;
+  --color-card: #f9f9f9;
+  --color-card-foreground: #111827;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #111827;
+  --color-secondary: #527575;
+  --color-secondary-foreground: #ffffff;
+  --color-muted-foreground: #6b7280;
+  --color-accent: #eeeeee;
+  --color-accent-foreground: #111827;
+  --color-border: #e5e7eb;
+  --color-input: #e5e7eb;
+  --color-chart-1: #5f8787;
+  --color-chart-2: #4173d8;
+  --color-chart-3: #98b9fb;
+  --color-chart-4: #888888;
+  --color-chart-5: #999999;
+
+  /* Sidebar surface. bg-sidebar / border-sidebar-border /
+     text-sidebar-text are on the aside markup, so these values theme it.
+     sidebar-hover backs the account menu's hover; nothing uses
+     sidebar-active. */
+  --color-sidebar: #f3f4f6;
+  --color-sidebar-hover: #f4f5f8;
+  --color-sidebar-text: #4b5563;
+  --color-sidebar-border: #e5e7eb;
+  --color-sidebar-muted: #6b7280;
+  --color-sidebar-label: #9ca3af;
+  --color-sidebar-active: #e8effc;
+  --color-sidebar-primary: #4173d8;
+  --color-sidebar-primary-foreground: #ffffff;
+  /* Basecoat's sidebar keys; the ported nav rules in app.css read
+     sidebar-accent for hover and active. */
+  --color-sidebar-foreground: #111827;
+  --color-sidebar-accent: #ffffff;
+  --color-sidebar-accent-foreground: #111827;
+
+  /* Text ramp: the theme has two tiers, foreground and
+     muted-foreground, so headings, table text and form labels share one
+     value. */
+  --color-ink: #111827;
+  --color-body: #111827;
+  --color-label: #111827;
+  /* Secondary text; the same value as --muted-foreground. */
+  --color-muted: #6b7280;
+  /* Disabled / offline; the theme has no equivalent. */
+  --color-faint: #9ca3af;
+
+  /* Lines and surfaces. Canvas is white, so surfaces separate by 1px
+     lines rather than by background shades. */
+  /* Input and container borders: the theme's --border/--input. */
+  --color-field: #e5e7eb;
+  --color-line: #e5e7eb;
+  /* In-table dividers; the theme has no equivalent. */
+  --color-rule: #eef2f7;
+  /* Page background (--background) and hover / thead fill (--muted). */
+  --color-canvas: #ffffff;
+  --color-subtle: #f3f4f6;
+
+  /* Status. danger is the invalid-field border; online, the status
+     dot. */
+  --color-danger: #ef4444;
+  --color-online: #38a169;
+
+  /* Software-category accents (deploy panel group headers). */
+  --color-cat-browser: #3b7dd8;
+  --color-cat-ide: #7c5cd6;
+  --color-cat-media: #c2557f;
+  --color-cat-office: #c98a3c;
+  --color-cat-utility: #3f9a8a;
+  --color-cat-security: #cf5a52;
+  --color-cat-network: #5a6fc4;
+  --color-cat-design: #a45cb8;
+  --color-cat-virt: #3d93a8;
+  --color-cat-runtime: #7f9a41;
+
+  /* --color-muted stays AppEase's TEXT grey, not the theme's muted
+     BACKGROUND fill: the collision noted above, fixed per component in
+     app.css. */
+}

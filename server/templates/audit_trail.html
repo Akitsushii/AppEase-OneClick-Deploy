@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+
+{% block title %}Audit Trail - AppEase{% endblock %}
+{% block page_title %}Audit Trail{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('dashboard') }}" class="rounded-md border border-field bg-canvas px-3 py-2 text-sm font-medium text-label hover:bg-subtle">Back to Dashboard</a>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {#- NO row menu and no Action column: an audit entry is the record OF
+        actions, and editing or deleting it would defeat the point.
+        Checkboxes and Export only: selecting is for choosing what to
+        export. -#}
+    <section class="card" data-dt-root data-dt-pagesize="25" data-dt-print
+             data-dt-searchlabel="Search activity..." data-dt-filename="audit-trail"
+             data-dt-xlsx-url="{{ url_for('export_xlsx') }}"
+             data-dt-noun="entry" data-dt-noun-plural="entries" data-dt-idfield="entry_ids"
+             data-print-section data-print-title="AppEase - Audit Trail">
+        <header>
+            <h3 class="card-title">Audit Trail</h3>
+            <p class="card-description">Accounts, software, deployments, uninstalls, problem reports, jobs, computers and equipment.</p>
+        </header>
+        {% if audit_entries %}
+            <section>
+                <div class="dt-toolbar" data-dt-toolbar></div>
+
+                <div class="dt-table-wrap">
+                    <table class="dt-table" data-dt-table data-table>
+                        <thead>
+                            <tr>
+                                <th class="dt-col-select" data-dt-select data-print-skip>
+                                    <input type="checkbox" class="input" aria-label="Select all rows on this page" />
+                                </th>
+                                <th data-dt-sort data-dt-daterange data-dt-label="Date">Date</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Action">Action</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Performed By">Performed By</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Target">Target</th>
+                                <th data-dt-sort data-dt-label="Details">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in audit_entries %}
+                                {#- data-dt-id is only the
+                                    export and selection key;
+                                    no route takes it. -#}
+                                <tr data-dt-id="{{ entry['id'] }}">
+                                    <td class="dt-col-select" data-print-skip>
+                                        <input type="checkbox" class="input" data-dt-check
+                                               value="{{ entry['id'] }}" aria-label="Select entry {{ entry['id'] }}" />
+                                    </td>
+                                    <td class="font-mono text-xs" data-sort="{{ entry['created_at'] }}">{{ entry["created_at"] | manila }}</td>
+                                    {#- The facet's own wording, so
+                                        both agree on a value. -#}
+                                    <td data-sort="{{ entry['action_type'] | replace('_', ' ') | capitalize }}">
+                                        {#- Tone from audit_tone, so
+                                            one place decides. -#}
+                                        <span class="dt-pill" data-tone="{{ entry['action_type'] | audit_tone }}">{{ entry["action_type"] | replace('_', ' ') | capitalize }}</span>
+                                    </td>
+                                    <td>
+                                        {% if entry["actor_username"] %}
+                                            {{ entry["actor_first_name"] | format_name(entry["actor_middle_initial"], entry["actor_last_name"]) or entry["actor_username"] }}
+                                        {% else %}
+                                            <span class="text-muted">Unknown</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if entry["target_username"] %}
+                                            {{ entry["target_first_name"] | format_name(entry["target_middle_initial"], entry["target_last_name"]) or entry["target_username"] }}
+                                        {% elif entry["target_label"] %}
+                                            <span class="text-muted">{{ entry["target_type"] | capitalize }}:</span> {{ entry["target_label"] }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ entry["details"] or "-" }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <p class="dt-empty hidden" data-dt-empty>No activity matches the current filters.</p>
+                </div>
+
+                <div class="dt-footer" data-dt-footer></div>
+            </section>
+
+            {#- Export only, never Delete: pruning the log from the page
+                that shows it would let someone erase what they just did. -#}
+            <div class="dt-actionbar hidden" data-dt-actionbar role="region" aria-label="Bulk actions">
+                <span class="dt-actionbar-count">
+                    <span data-dt-count>0 selected</span>
+                    <button type="button" class="dt-actionbar-clear" data-dt-clear aria-label="Clear selection">&times;</button>
+                </span>
+                <span class="dt-actionbar-sep" aria-hidden="true"></span>
+                <button type="button" class="dt-btn" data-dt-export>Export</button>
+            </div>
+        {% else %}
+            <section>
+                {% if action_filter or actor_filter %}
+                    <p class="text-sm text-muted">No activity matches the selected filters.</p>
+                {% else %}
+                    <p class="text-sm text-muted">No activity recorded yet.</p>
+                {% endif %}
+            </section>
+        {% endif %}
+    </section>
+</div>
+<script defer src="{{ url_for('static', filename='js/data-table.js') }}"></script>
+{% endblock %}

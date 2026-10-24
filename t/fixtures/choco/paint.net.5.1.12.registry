@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<registrySnapshot xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <user>S-1-5-21-1111111111-2222222222-3333333333-1001</user>
+  <keys>
+    <key installerType="Msi" displayName="Paint.NET" displayVersion="5.1.12">
+      <RegistryView>Registry64</RegistryView>
+      <KeyPath>HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{C6A29A65-A91B-4F4A-A1B5-B904AC61255D}</KeyPath>
+      <DefaultValue />
+      <InstallLocation><![CDATA[]]></InstallLocation>
+      <UninstallString><![CDATA[MsiExec.exe /X{C6A29A65-A91B-4F4A-A1B5-B904AC61255D}]]></UninstallString>
+      <HasQuietUninstall>false</HasQuietUninstall>
+      <Publisher><![CDATA[dotPDN LLC]]></Publisher>
+      <InstallDate>20260806</InstallDate>
+      <InstallSource><![CDATA[C:\ProgramData\chocolatey\lib\paint.net\tools\]]></InstallSource>
+      <Language>1033</Language>
+      <Version>83951628</Version>
+      <VersionMajor>5</VersionMajor>
+      <VersionMinor>1</VersionMinor>
+      <SystemComponent>false</SystemComponent>
+      <WindowsInstaller>true</WindowsInstaller>
+      <NoRemove>false</NoRemove>
+      <NoModify>true</NoModify>
+      <NoRepair>false</NoRepair>
+      <ReleaseType />
+      <ParentKeyName />
+      <LocalPackage><![CDATA[C:\WINDOWS\Installer\6e1ca.msi]]></LocalPackage>
+    </key>
+  </keys>
+</registrySnapshot>

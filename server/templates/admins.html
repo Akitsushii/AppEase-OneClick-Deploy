@@ -1,0 +1,616 @@
+{% extends 'base.html' %}
+{% block title %}Accounts - AppEase{% endblock %}
+{% block page_title %}Accounts{% endblock %}
+{% block topbar_actions %}
+<a href="{{ url_for('dashboard') }}" class="rounded-md border border-field bg-canvas px-3 py-2 text-sm font-medium text-label hover:bg-subtle">Back to Dashboard</a>
+{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    {% if error_message %}
+        <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ error_message | tojson }}, 'error'); });</script>
+    {% endif %}
+    {% if success_message %}
+        <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ success_message | tojson }}, 'success'); });</script>
+    {% endif %}
+    {#- YOUR OWN ROW has no checkbox or row menu: the server refuses
+        deleting or demoting yourself anyway, and not offering beats
+        rejecting. The "Current account" pill says why. -#}
+    <section class="card" data-dt-root data-dt-pagesize="10" data-dt-print
+             data-dt-searchlabel="Search accounts..." data-dt-filename="accounts"
+             data-dt-xlsx-url="{{ url_for('export_xlsx') }}"
+             data-dt-noun="account" data-dt-idfield="admin_ids"
+             data-print-section data-print-title="AppEase - Current Accounts">
+        <header>
+            <h3 class="card-title">Current Accounts</h3>
+            <p class="card-description">Everyone who can sign in to AppEase.</p>
+            {#- Whether outgoing mail is set up - read from one boolean, so no
+                setting's value can ever reach this page. The test button
+                emails only your own address; its tooltip sits on a wrapper
+                because a disabled button gets no hover. -#}
+            <div class="flex flex-wrap items-center gap-2 text-xs text-muted">
+                {% if email_configured %}
+                    <span class="dt-pill" data-tone="good">Email: configured</span>
+                {% else %}
+                    <span class="dt-pill" data-tone="neutral">Email: not configured</span>
+                    <span>Sign-in details are shown on screen instead.</span>
+                {% endif %}
+                <form method="POST" action="{{ url_for('send_test_email') }}">
+                    {% if not email_configured %}
+                        <span title="Email is not configured on this server."><button type="submit" class="btn" data-variant="outline" data-size="sm" disabled>Send test email</button></span>
+                    {% elif not own_email_on_file %}
+                        <span title="Your account has no email address. Add one in Settings first."><button type="submit" class="btn" data-variant="outline" data-size="sm" disabled>Send test email</button></span>
+                    {% else %}
+                        <button type="submit" class="btn" data-variant="outline" data-size="sm" title="Sends a test email to your own address."
+                                data-busy="Sending test email...">Send test email</button>
+                    {% endif %}
+                </form>
+            </div>
+            {#- Add opens a dialog holding the form, with the field ids the
+                validation script below expects. -#}
+            <span class="card-action">
+                <button type="button" class="btn" onclick="document.getElementById('adm-add-dialog').showModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" x2="19" y1="8" y2="14" /><line x1="22" x2="16" y1="11" y2="11" /></svg>
+                    Add Account
+                </button>
+            </span>
+        </header>
+        {% if admins %}
+            <section>
+                <div class="dt-toolbar" data-dt-toolbar></div>
+
+                <div class="dt-table-wrap">
+                    <table class="dt-table" data-dt-table data-table>
+                        <thead>
+                            <tr>
+                                <th class="dt-col-select" data-dt-select data-print-skip>
+                                    <input type="checkbox" class="input" aria-label="Select all rows on this page" />
+                                </th>
+                                <th class="dt-col-id" data-dt-sort data-dt-label="ID">ID</th>
+                                <th data-dt-sort data-dt-label="Username">Username</th>
+                                <th data-dt-sort data-dt-label="Full Name">Full Name</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Role">Role</th>
+                                <th data-dt-sort data-dt-label="Email">Email</th>
+                                {#- Status is a facet (two values),
+                                    Last Seen a date range, as on
+                                    Lab Computers. -#}
+                                <th data-dt-sort data-dt-facet data-dt-label="Status">Status</th>
+                                <th data-dt-sort data-dt-daterange data-dt-label="Last Seen">Last Seen</th>
+                                <th data-dt-sort data-dt-daterange data-dt-label="Date Created">Date Created</th>
+                                <th class="dt-col-actions" data-dt-actions data-dt-label="Action" data-print-skip>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in admins %}
+                                {% set is_self = item["id"] == session.get("admin_id") %}
+                                <tr data-dt-id="{{ item['id'] }}"
+                                    {% if not is_self %}
+                                        data-dt-edit
+                                        data-dt-edit-role="{{ item['role'] }}"
+                                        data-dt-edit-email="{{ item['email'] or '' }}"
+                                        data-dt-edit-username="{{ item['username'] }}"
+                                        {#- Worded here, where it is known
+                                            whether an address is on file. -#}
+                                        data-dt-reset-url="{{ url_for('reset_admin_password', admin_id=item['id']) }}"
+                                        data-dt-reset-message="AppEase will generate a new password for '{{ item['username'] }}'{% if item['email'] %} and email it to {{ item['email'] }}{% else %}, and show it to you once because there is no email address on file{% endif %}. Their current password stops working immediately."
+                                    {% endif %}>
+                                    <td class="dt-col-select" data-print-skip>
+                                        {% if not is_self %}
+                                            <input type="checkbox" class="input" data-dt-check
+                                                   value="{{ item['id'] }}" aria-label="Select {{ item['username'] }}" />
+                                        {% endif %}
+                                    </td>
+                                    <td class="font-mono text-xs" data-sort="{{ item['id'] }}">{{ item["id"] }}</td>
+                                    {#- Always an <img> (avatar_url_for()
+                                        gives the default); the initials
+                                        underneath show if onerror removes
+                                        a broken one. data-sort is the
+                                        bare username. -#}
+                                    <td class="font-medium" data-sort="{{ item['username'] }}">
+                                        <div class="flex items-center gap-2">
+                                            <span class="avatar shrink-0" data-size="sm" aria-hidden="true">
+                                                <img src="{{ avatar_url_for(item['avatar_path']) }}" alt="" onerror="this.remove()">
+                                                <span>{{ (item["first_name"] or item["username"])[:1] | upper }}{{ (item["last_name"] or "")[:1] | upper }}</span>
+                                            </span>
+                                            <span>{{ item["username"] }}</span>
+                                        </div>
+                                    </td>
+                                    <td>{{ item["first_name"] | format_name(item["middle_initial"], item["last_name"]) or "-" }}</td>
+                                    <td>
+                                        {% if item["role"] == "admin" %}
+                                            <span class="dt-pill" data-tone="info">{{ item["role"] | role_label }}</span>
+                                        {% else %}
+                                            <span class="dt-pill" data-tone="good">{{ item["role"] | role_label }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td data-sort="{{ item['email'] or '' }}">{% if item["email"] %}{{ item["email"] }}{% else %}<span class="text-muted">none on file</span>{% endif %}</td>
+                                    <td>
+                                        {% if item["is_online"] %}
+                                            <span class="dt-pill" data-tone="good">Online</span>
+                                        {% else %}
+                                            <span class="dt-pill" data-tone="neutral">Offline</span>
+                                        {% endif %}
+                                    </td>
+                                    {#- The RAW UTC value: the manila
+                                        format does not sort as text, and
+                                        the date filter reads it too. -#}
+                                    <td class="font-mono text-xs" data-sort="{{ item['last_active_at'] or '' }}">
+                                        {% if item["last_active_at"] %}{{ item["last_active_at"] | manila }}{% else %}<span class="text-muted">Never</span>{% endif %}
+                                    </td>
+                                    <td class="font-mono text-xs" data-sort="{{ item['created_at'] or '' }}">{{ item["created_at"] | manila }}</td>
+                                    <td class="dt-col-actions" data-print-skip>
+                                        {% if is_self %}
+                                            <span class="dt-pill" data-tone="neutral">Current account</span>
+                                        {% else %}
+                                            <button type="button" class="dt-row-menu" data-dt-rowmenu
+                                                    data-dt-reset
+                                                    data-dt-delete-url="{{ url_for('delete_admin', admin_id=item['id']) }}"
+                                                    aria-haspopup="menu" aria-expanded="false"
+                                                    aria-label="Actions for {{ item['username'] }}">
+                                                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+                                            </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <p class="dt-empty hidden" data-dt-empty>No accounts match the current filters.</p>
+                </div>
+
+                <div class="dt-footer" data-dt-footer></div>
+            </section>
+
+            <div class="dt-actionbar hidden" data-dt-actionbar role="region" aria-label="Bulk actions">
+                <span class="dt-actionbar-count">
+                    <span data-dt-count>0 selected</span>
+                    <button type="button" class="dt-actionbar-clear" data-dt-clear aria-label="Clear selection">&times;</button>
+                </span>
+                <span class="dt-actionbar-sep" aria-hidden="true"></span>
+                <button type="button" class="dt-btn" data-dt-export>Export</button>
+                <form method="POST" action="{{ url_for('bulk_delete_admins') }}" data-dt-form>
+                    <button type="submit" class="dt-btn" data-tone="danger" data-dt-act="delete">Delete</button>
+                </form>
+            </div>
+
+            <dialog id="adm-confirm-delete" class="alert-dialog" data-dt-confirm="delete"
+                    aria-labelledby="adm-confirm-delete-title" aria-describedby="adm-confirm-delete-desc">
+                <div>
+                    <header>
+                        <figure><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></figure>
+                        <h2 id="adm-confirm-delete-title">Delete <span data-dt-confirm-count>this account</span>?</h2>
+                        <p id="adm-confirm-delete-desc">They cannot sign in again. Their audit trail entries stay. The last admin account is always kept.</p>
+                    </header>
+                    <footer>
+                        <button type="button" class="btn" data-variant="outline" data-dt-confirm-cancel>Cancel</button>
+                        <button type="button" class="btn" data-variant="destructive" data-dt-confirm-ok>Delete</button>
+                    </footer>
+                </div>
+            </dialog>
+
+            {#- Its own dialog: the message is per-account, and it is not
+                destructive, so no red button. -#}
+            <dialog id="adm-confirm-reset" class="alert-dialog" data-dt-confirm="reset"
+                    aria-labelledby="adm-confirm-reset-title" aria-describedby="adm-confirm-reset-desc">
+                <div>
+                    <header>
+                        <figure><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg></figure>
+                        <h2 id="adm-confirm-reset-title">Reset this password?</h2>
+                        <p id="adm-confirm-reset-desc" data-adm-reset-message></p>
+                    </header>
+                    <footer>
+                        <button type="button" class="btn" data-variant="outline" data-dt-confirm-cancel>Cancel</button>
+                        <button type="button" class="btn" data-dt-confirm-ok
+                                data-busy="{{ 'Sending sign-in details...' if email_configured else 'Resetting password...' }}">Reset password</button>
+                    </footer>
+                </div>
+            </dialog>
+        {% else %}
+            <section>
+                <p class="text-sm text-muted">No accounts found.</p>
+            </section>
+        {% endif %}
+    </section>
+
+    {#- Edit drawer: role and email only. Username is what people sign in
+        with and what the audit trail names; names are the person's own to
+        change from Profile; the password is never typed on someone else's
+        behalf - that is what Reset password is for. -#}
+    <dialog id="adm-edit-drawer" class="drawer" data-side="right"
+            aria-labelledby="adm-edit-title" aria-describedby="adm-edit-description">
+        <article>
+            <header>
+                <h2 id="adm-edit-title">Edit <span id="adm-edit-username"></span></h2>
+                <p id="adm-edit-description">Change the role and email address.</p>
+            </header>
+            <section class="px-4">
+                <form method="POST" id="adm-edit-form" class="sw-edit-fields">
+                    <div role="group" class="field">
+                        <label for="adm-edit-role">Role</label>
+                        <select class="input" id="adm-edit-role" name="role" required>
+                            <option value="admin">{{ "admin" | role_label }}</option>
+                            <option value="faculty">Faculty</option>
+                        </select>
+                    </div>
+                    <div role="group" class="field">
+                        <label for="adm-edit-email">Email</label>
+                        <input class="input" id="adm-edit-email" name="email" type="email"
+                               maxlength="120" autocomplete="off" placeholder="none on file"
+                               oninput="validateEmailField('adm-edit-email', 'adm-edit-email-error')" />
+                        <span id="adm-edit-email-error" class="text-xs text-danger hidden"></span>
+                        <p class="text-xs text-muted">Password resets are emailed here. Leave blank to be shown the password instead.</p>
+                    </div>
+                </form>
+            </section>
+            <footer>
+                <button type="button" class="btn" data-variant="outline" data-adm-drawer-close>Cancel</button>
+                <button type="submit" form="adm-edit-form" class="btn">Save</button>
+            </footer>
+        </article>
+    </dialog>
+
+    {#- Add Account, with the field ids the validation script expects. A
+        rejection redirects back with ?error=, and the script re-opens this
+        dialog so a failed create does not vanish. -#}
+    <dialog id="adm-add-dialog" class="dialog" aria-labelledby="adm-add-title"
+            aria-describedby="adm-add-description" onclick="if (event.target === this) this.close()">
+        <div class="sm:max-w-sm">
+            <header>
+                <h2 id="adm-add-title">Add new account</h2>
+                <p id="adm-add-description">A temporary password is generated for them.</p>
+            </header>
+            <section>
+                <form method="post" action="{{ url_for('manage_admins') }}" id="adm-add-form" class="sw-edit-fields">
+                    <div role="group" class="field">
+                        <label for="first_name">First name</label>
+                        <input class="input" type="text" id="first_name" name="first_name" required
+                               oninput="validateFirstName()" autocomplete="off" placeholder="Juan" />
+                        <span id="first_name-error" class="text-xs text-danger hidden"></span>
+                    </div>
+                    <div role="group" class="field">
+                        <label for="last_name">Last name</label>
+                        <input class="input" type="text" id="last_name" name="last_name" required
+                               oninput="validateLastName()" autocomplete="off" placeholder="Dela Cruz" />
+                        <span id="last_name-error" class="text-xs text-danger hidden"></span>
+                    </div>
+                    <div role="group" class="field">
+                        <label for="middle_initial">Middle initial <span class="text-muted">(optional)</span></label>
+                        <input class="input" type="text" id="middle_initial" name="middle_initial" maxlength="2"
+                               oninput="validateMiddleInitial()" autocomplete="off" placeholder="S" />
+                        <span id="middle_initial-error" class="text-xs text-danger hidden"></span>
+                    </div>
+                    <div role="group" class="field">
+                        <label for="username">Username</label>
+                        <input class="input" type="text" id="username" name="username" required
+                               oninput="validateUsername()" autocomplete="off" placeholder="jdelacruz" />
+                        <span id="username-char-count" class="text-xs text-muted">0 / 30 characters</span>
+                        <span id="username-error" class="text-xs text-danger hidden"></span>
+                    </div>
+                    <div role="group" class="field">
+                        <label for="email">Email <span class="text-muted">(optional)</span></label>
+                        <input class="input" type="email" id="email" name="email" maxlength="120"
+                               placeholder="name@example.edu" autocomplete="off" oninput="validateEmailField('email', 'email-error')" />
+                        <span id="email-error" class="text-xs text-danger hidden"></span>
+                        <p class="text-xs text-muted">Sign-in details are emailed here. Leave blank to be shown the password instead.</p>
+                    </div>
+                    <div role="group" class="field">
+                        <label for="role">Role</label>
+                        <select class="input" id="role" name="role" required>
+                            <option value="admin">{{ "admin" | role_label }}</option>
+                            <option value="faculty">Faculty</option>
+                        </select>
+                    </div>
+                </form>
+            </section>
+            <footer>
+                <button type="button" class="btn" data-variant="outline" onclick="this.closest('dialog').close()">Cancel</button>
+                <button type="submit" form="adm-add-form" class="btn" id="create-account-btn"
+                        data-busy="{{ 'Sending sign-in details...' if email_configured else 'Creating account...' }}">Create account</button>
+            </footer>
+            <button type="button" class="btn" data-variant="ghost" data-size="icon-sm" aria-label="Close dialog" onclick="this.closest('dialog').close()"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
+        </div>
+    </dialog>
+
+    {#- The generated password, shown exactly once and never retrievable
+        (only the hash is stored), so a dialog that demands a deliberate
+        dismissal, opened on load. NOT closable by clicking the backdrop: an
+        accidental close costs a second reset. A Copy button, since
+        selecting it by hand invites transcription errors. -#}
+    {% if issued_password %}
+        <dialog id="adm-password-dialog" class="dialog" aria-labelledby="adm-password-title"
+                aria-describedby="adm-password-description">
+            <div class="sm:max-w-sm">
+                <header>
+                    <h2 id="adm-password-title">{% if issued_new %}Sign-in details for {{ issued_for }}{% else %}Temporary password for {{ issued_for }}{% endif %}</h2>
+                    <p id="adm-password-description">{% if issued_note %}{{ issued_note }} {% endif %}Give {% if issued_new %}the username and this password{% else %}this{% endif %} to them directly. It is shown once and cannot be looked up again. They will choose their own password at first sign-in.</p>
+                </header>
+                <section>
+                    {% if issued_new %}
+                        <p class="text-sm text-muted">Username</p>
+                        <p class="select-all font-mono text-ink">{{ issued_for }}</p>
+                    {% endif %}
+                    <p class="text-sm text-muted">Password</p>
+                    <div class="adm-password-row">
+                        <code class="adm-password-value select-all" id="adm-password-value">{{ issued_password }}</code>
+                        <button type="button" class="btn" data-variant="outline" id="adm-password-copy">Copy</button>
+                    </div>
+                </section>
+                <footer>
+                    <button type="button" class="btn" onclick="this.closest('dialog').close()">Done</button>
+                </footer>
+            </div>
+        </dialog>
+    {% endif %}
+</div>
+<script>
+    /* Mirrors validate_admin_email(): <input type="email"> accepts
+     * "jols@g" (intranet hosts). Same rule and message as the server,
+     * which stays the authority. */
+    function emailProblem(value) {
+        if (!value) { return ''; }
+        if (value.length > 120 || /\s/.test(value) || (value.split('@').length - 1) !== 1) {
+            return 'That does not look like an email address.';
+        }
+        var at = value.indexOf('@');
+        var local = value.slice(0, at);
+        var domain = value.slice(at + 1);
+        if (!local || !domain) { return 'That does not look like an email address.'; }
+        var labels = domain.split('.');
+        var incomplete = 'Enter the full email address, including the part after the dot (for example name@gmail.com).';
+        if (labels.length < 2) { return incomplete; }
+        for (var i = 0; i < labels.length; i += 1) {
+            if (!labels[i]) { return incomplete; }
+        }
+        if (!/^[A-Za-z]{2,}$/.test(labels[labels.length - 1])) { return incomplete; }
+        return '';
+    }
+
+    function validateEmailField(inputId, errorId) {
+        var input = document.getElementById(inputId);
+        var slot = document.getElementById(errorId);
+        if (!input || !slot) { return true; }
+        var problem = emailProblem(input.value.trim());
+        slot.textContent = problem;
+        slot.classList.toggle('hidden', !problem);
+        if (problem) { input.setAttribute('aria-invalid', 'true'); }
+        else { input.removeAttribute('aria-invalid'); }
+        if (typeof checkAddAdminValid === 'function' && inputId === 'email') {
+            checkAddAdminValid();
+        }
+        return !problem;
+    }
+
+    // Emoji: a surrogate pair (spread length differs) or misc symbols.
+    function hasEmoji(str) {
+        return str.length !== [...str].length || /[\u2600-\u27BF]/.test(str);
+    }
+    // Shared validator — returns error key or null
+    function checkField(val, minLen, maxLen, charPattern) {
+        if (!val) return 'required';
+        if (val.length < minLen) return 'short';
+        if (val.length > maxLen) return 'long';
+        if (/  /.test(val)) return 'spaces';
+        if (/(.)\1{3,}/.test(val)) return 'repeat';
+        if (hasEmoji(val)) return 'emoji';
+        if (!charPattern.test(val)) return 'chars';
+        return null;
+    }
+    function applyFieldUI(inputId, errorId, countId, error, maxLen, msgs) {
+        var input = document.getElementById(inputId);
+        var errorEl = document.getElementById(errorId);
+        var countEl = document.getElementById(countId);
+        countEl.textContent = input.value.length + ' / ' + maxLen + ' characters';
+        if (error) {
+            errorEl.textContent = msgs[error] || 'Invalid input.';
+            errorEl.classList.remove('hidden');
+            input.classList.add('border-danger');
+            input.classList.remove('border-field');
+        } else {
+            errorEl.textContent = '';
+            errorEl.classList.add('hidden');
+            input.classList.remove('border-danger');
+            input.classList.add('border-field');
+        }
+    }
+    // ---------- Add New Account ----------
+    // Names allow spaces and name punctuation, so they get their own
+    // validator (First and Last Name; Middle Initial has a stricter one).
+    function validateNamePart(inputId, errorId, label) {
+        var input = document.getElementById(inputId);
+        var errorEl = document.getElementById(errorId);
+        var val = input.value.trim();
+        var error = null;
+        if (!val) {
+            error = label + ' is required.';
+        } else if (val.length < 2) {
+            error = label + ' must be at least 2 characters.';
+        } else if (val.length > 40) {
+            error = label + ' must be 40 characters or fewer.';
+        } else if (hasEmoji(val)) {
+            error = 'Emoji are not allowed.';
+        } else if (!/^[a-zA-Z.'\-\s]+$/.test(val)) {
+            error = 'Use only letters, spaces, periods, apostrophes, or hyphens.';
+        }
+        if (error) {
+            errorEl.textContent = error;
+            errorEl.classList.remove('hidden');
+            input.classList.add('border-danger');
+            input.classList.remove('border-field');
+        } else {
+            errorEl.textContent = '';
+            errorEl.classList.add('hidden');
+            input.classList.remove('border-danger');
+            input.classList.add('border-field');
+        }
+        checkAddAdminValid();
+    }
+    function validateFirstName() {
+        validateNamePart('first_name', 'first_name-error', 'First name');
+    }
+    function validateLastName() {
+        validateNamePart('last_name', 'last_name-error', 'Last name');
+    }
+    // Optional; 1 or 2 letters (maxlength="2" caps it as you type). No
+    // period: format_full_name() adds it, so typing one shows "Ma..".
+    function validateMiddleInitial() {
+        var input = document.getElementById('middle_initial');
+        var errorEl = document.getElementById('middle_initial-error');
+        var val = input.value.trim();
+        var error = null;
+        if (val && !/^[a-zA-Z]{1,2}$/.test(val)) {
+            error = 'Middle initial must be 1 or 2 letters.';
+        }
+        if (error) {
+            errorEl.textContent = error;
+            errorEl.classList.remove('hidden');
+            input.classList.add('border-danger');
+            input.classList.remove('border-field');
+        } else {
+            errorEl.textContent = '';
+            errorEl.classList.add('hidden');
+            input.classList.remove('border-danger');
+            input.classList.add('border-field');
+        }
+        checkAddAdminValid();
+    }
+    function validateUsername() {
+        var val = document.getElementById('username').value;
+        var error = checkField(val, 3, 30, /^[a-zA-Z0-9._-]+$/);
+        applyFieldUI('username', 'username-error', 'username-char-count', error, 30, {
+            required: 'Username is required.',
+            short:    'Username must be at least 3 characters.',
+            long:     'Username must be 30 characters or fewer.',
+            spaces:   'Use only letters, numbers, dot, underscore, or hyphen (no spaces).',
+            repeat:   'Avoid repeating the same character 4+ times.',
+            emoji:    'Emoji are not allowed.',
+            chars:    'Use only letters, numbers, dot, underscore, or hyphen (no spaces).'
+        });
+        checkAddAdminValid();
+    }
+    function checkAddAdminValid() {
+        var usernameVal = document.getElementById('username').value;
+        var firstNameVal = document.getElementById('first_name').value;
+        var lastNameVal = document.getElementById('last_name').value;
+        var usernameErr = document.getElementById('username-error').textContent;
+        // No password check: the first password is generated on the server.
+        var firstNameErr = document.getElementById('first_name-error').textContent;
+        var lastNameErr = document.getElementById('last_name-error').textContent;
+        var middleInitialErr = document.getElementById('middle_initial-error').textContent;
+        // Email IS gated: a truncated address creates the account but sends
+        // its credentials nowhere, silently. Blank is still allowed.
+        var emailErr = document.getElementById('email-error');
+        emailErr = emailErr ? emailErr.textContent : '';
+        var allOk = !!usernameVal && !usernameErr && !emailErr &&
+                    !!firstNameVal && !firstNameErr && !!lastNameVal && !lastNameErr && !middleInitialErr;
+        document.getElementById('create-account-btn').disabled = !allOk;
+    }
+    // Run once on page load so the submit button starts in the correct
+    // (disabled) state and the char counter reflects any restored value.
+    checkAddAdminValid();
+</script>
+<script>
+    /* data-table.js hooks: it announces, this page decides.
+     *   dt:edit    -> open the role/email drawer, pre-filled
+     *   dt:confirm -> fill the reset dialog's per-account wording
+     * The drawer close is hand-written: Basecoat's drawer JS is not loaded. */
+    (function () {
+        var drawer = document.getElementById('adm-edit-drawer');
+        var form = document.getElementById('adm-edit-form');
+
+        document.addEventListener('dt:confirm', function (event) {
+            if (!event.detail || event.detail.kind !== 'reset') { return; }
+            var slot = event.detail.dialog.querySelector('[data-adm-reset-message]');
+            var row = event.detail.row;
+            if (slot && row) {
+                slot.textContent = row.getAttribute('data-dt-reset-message') || '';
+            }
+        });
+
+        if (drawer && form) {
+            var username = document.getElementById('adm-edit-username');
+            var role = document.getElementById('adm-edit-role');
+            var email = document.getElementById('adm-edit-email');
+            var EDIT_URL = "{{ url_for('update_admin_fields', admin_id=0) }}";
+
+            var closeDrawer = function () {
+                if (!drawer.open) { return; }
+                drawer.setAttribute('data-closing', '');
+                // 500ms matches the drawer transition in basecoat.css.
+                window.setTimeout(function () {
+                    drawer.removeAttribute('data-closing');
+                    drawer.close();
+                }, 500);
+            };
+
+            document.addEventListener('dt:edit', function (event) {
+                var row = event.detail && event.detail.row;
+                if (!row) { return; }
+                // The /0/ SEGMENT is the placeholder, not a trailing zero.
+                form.action = EDIT_URL.replace('/0/', '/' + encodeURIComponent(event.detail.id) + '/');
+                username.textContent = row.getAttribute('data-dt-edit-username') || ('#' + event.detail.id);
+                role.value = row.getAttribute('data-dt-edit-role') || 'faculty';
+                email.value = row.getAttribute('data-dt-edit-email') || '';
+                drawer.showModal();
+                role.focus();
+            });
+
+            drawer.addEventListener('click', function (event) {
+                if (event.target.closest('[data-adm-drawer-close]')) { closeDrawer(); return; }
+                if (event.target === drawer) { closeDrawer(); }
+            });
+            drawer.addEventListener('cancel', function (event) {
+                event.preventDefault();
+                closeDrawer();
+            });
+
+            // Same rule as the Add dialog, so a bad address cannot reach the
+            // server from either direction.
+            form.addEventListener('submit', function (event) {
+                if (!validateEmailField('adm-edit-email', 'adm-edit-email-error')) {
+                    event.preventDefault();
+                }
+            });
+        }
+
+        // A rejected create returns ?error= and ?add=1: re-open the dialog
+        // so the toast and the typed form show together. Only ?add=1
+        // reopens it, so a drawer error does not pop the Add form.
+        var addDialog = document.getElementById('adm-add-dialog');
+        if (addDialog && {{ (request.args.get('add') == '1') | tojson }}) {
+            addDialog.showModal();
+        }
+
+        // Shown once and never retrievable, so it opens on load and asks to
+        // be dismissed deliberately.
+        var passwordDialog = document.getElementById('adm-password-dialog');
+        if (passwordDialog) {
+            passwordDialog.showModal();
+            var copy = document.getElementById('adm-password-copy');
+            var value = document.getElementById('adm-password-value');
+            if (copy && value) {
+                copy.addEventListener('click', function () {
+                    var text = value.textContent;
+                    var done = function () {
+                        copy.textContent = 'Copied';
+                        window.setTimeout(function () { copy.textContent = 'Copy'; }, 1600);
+                    };
+                    // navigator.clipboard needs a secure context. AppEase runs
+                    // on plain http over the lab LAN, where it is undefined -
+                    // so there is a selection fallback, and the value is
+                    // .select-all either way.
+                    if (navigator.clipboard && window.isSecureContext) {
+                        navigator.clipboard.writeText(text).then(done, function () {});
+                        return;
+                    }
+                    var range = document.createRange();
+                    range.selectNodeContents(value);
+                    var selection = window.getSelection();
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    try { document.execCommand('copy'); done(); } catch (err) { /* leave it selected */ }
+                });
+            }
+        }
+    })();
+</script>
+<script defer src="{{ url_for('static', filename='js/data-table.js') }}"></script>
+{% endblock %}

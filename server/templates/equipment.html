@@ -1,0 +1,731 @@
+{% extends 'base.html' %}
+
+{% block title %}Equipment - AppEase{% endblock %}
+{% block page_title %}Equipment{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {% if equipment_error %}
+        <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ equipment_error | tojson }}, 'error'); });</script>
+    {% endif %}
+    {% if equipment_success %}
+        <script>document.addEventListener('DOMContentLoaded', function () { showToast({{ equipment_success | tojson }}, 'success'); });</script>
+    {% endif %}
+
+    {#- Peripherals a technician records by hand, stored per ROOM: an item
+        is not tied to one computer. -#}
+    <section class="card" data-dt-root data-dt-pagesize="25" data-dt-print
+             data-dt-searchlabel="Search equipment..." data-dt-filename="equipment"
+             data-dt-xlsx-url="{{ url_for('export_xlsx') }}"
+             data-dt-noun="item" data-dt-idfield="equipment_ids"
+             data-print-section data-print-title="AppEase - Equipment">
+        <header>
+            <h3 class="card-title">Equipment</h3>
+            {#- Counts OBJECTS, not rows: a row reading "40 cables" is forty
+                things owned. -#}
+            <p class="card-description">{{ equipment_total }} item{{ '' if equipment_total == 1 else 's' }} across {{ equipment | length }} record{{ '' if equipment | length == 1 else 's' }}.</p>
+            <span class="card-action">
+                <button type="button" class="btn" id="equip-add-button" data-print-skip>Add equipment</button>
+            </span>
+        </header>
+
+        {% if equipment %}
+            <section>
+                <div class="dt-toolbar" data-dt-toolbar></div>
+
+                <div class="dt-table-wrap">
+                    <table class="dt-table" data-dt-table data-table>
+                        <thead>
+                            <tr>
+                                <th class="dt-col-select" data-dt-select data-print-skip>
+                                    <input type="checkbox" class="input" aria-label="Select all rows on this page" />
+                                </th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Category">Category</th>
+                                <th data-dt-sort data-dt-label="Item">Item</th>
+                                <th data-dt-sort data-dt-label="Serial">Serial</th>
+                                <th data-dt-sort data-dt-label="Qty">Qty</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Location">Location</th>
+                                <th data-dt-sort data-dt-facet data-dt-label="Condition">Condition</th>
+                                <th class="dt-col-actions" data-dt-actions data-dt-label="Action" data-print-skip>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in equipment %}
+                                <tr data-dt-id="{{ item['id'] }}" data-dt-edit
+                                    data-dt-edit-category="{{ item['category'] }}"
+                                    data-dt-edit-manufacturer="{{ item['manufacturer'] or '' }}"
+                                    data-dt-edit-model="{{ item['model'] or '' }}"
+                                    data-dt-edit-serial="{{ item['serial_number'] or '' }}"
+                                    data-dt-edit-quantity="{{ item['quantity'] or 1 }}"
+                                    data-dt-edit-location="{{ item['location'] }}"
+                                    data-dt-edit-status="{{ item['asset_status'] or '' }}"
+                                    data-dt-edit-purchase="{{ item['purchase_date'] or '' }}"
+                                    data-dt-edit-vendor="{{ item['vendor'] or '' }}"
+                                    data-dt-edit-warranty="{{ item['warranty_until'] or '' }}"
+                                    data-dt-edit-notes="{{ item['notes'] or '' }}"
+                                    data-detail-condition="{{ item['asset_status_label'] }}">
+                                    <td class="dt-col-select" data-print-skip>
+                                        <input type="checkbox" class="input" data-dt-check
+                                               value="{{ item['id'] }}" aria-label="Select {{ item['category'] }} in {{ item['location'] }}" />
+                                    </td>
+                                    <td>{{ item["category"] }}</td>
+                                    <td>
+                                        {%- set label = [item['manufacturer'], item['model']] | select | join(' ') -%}
+                                        {% if label %}{{ label }}{% else %}<span class="text-muted">Not recorded</span>{% endif %}
+                                    </td>
+                                    <td class="font-mono text-xs">{% if item["serial_number"] %}{{ item["serial_number"] }}{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                                    {#- The raw number, so "12" does not
+                                        sort before "2" as text. -#}
+                                    <td data-sort="{{ item['quantity'] or 1 }}">{{ item["quantity"] or 1 }}</td>
+                                    <td>{{ item["location"] }}</td>
+                                    <td>
+                                        {% if item["asset_status_label"] == "Retired" %}
+                                            <span class="dt-pill" data-tone="bad">Retired</span>
+                                        {% elif item["asset_status_label"] == "In repair" %}
+                                            <span class="dt-pill" data-tone="warn">In repair</span>
+                                        {% else %}
+                                            <span class="dt-pill" data-tone="neutral">In use</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="dt-col-actions" data-print-skip>
+                                        <button type="button" class="dt-row-menu" data-dt-rowmenu
+                                                data-dt-details
+                                                data-dt-delete-url="{{ url_for('delete_equipment', equipment_id=item['id']) }}"
+                                                aria-haspopup="menu" aria-expanded="false"
+                                                aria-label="Actions for {{ item['category'] }} in {{ item['location'] }}">
+                                            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <p class="dt-empty hidden" data-dt-empty>No equipment matches the current filters.</p>
+                </div>
+
+                <div class="dt-footer" data-dt-footer></div>
+            </section>
+
+            <div class="dt-actionbar hidden" data-dt-actionbar role="region" aria-label="Bulk actions">
+                <span class="dt-actionbar-count">
+                    <span data-dt-count>0 selected</span>
+                    <button type="button" class="dt-actionbar-clear" data-dt-clear aria-label="Clear selection">&times;</button>
+                </span>
+                <span class="dt-actionbar-sep" aria-hidden="true"></span>
+                {#- Each control is its own form (data-table.js fills in the
+                    ticked ids), and a select submits on change, so there is
+                    no Apply button to forget. -#}
+                <form method="POST" action="{{ url_for('bulk_update_equipment_condition') }}" data-dt-form>
+                    <label class="sr-only" for="equip-bulk-condition">Set condition</label>
+                    <select class="input dt-bulk-select" id="equip-bulk-condition" name="asset_status"
+                            onchange="if (this.value) { this.form.submit(); }">
+                        <option value="">Set condition...</option>
+                        {% for status in allowed_asset_statuses %}
+                            <option value="{{ status }}">{{ status }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                {#- A SELECT of existing rooms, not a text box: a typo in a
+                    bulk move would invent a room and scatter several rows
+                    into it. New rooms come one row at a time through Add. -#}
+                <form method="POST" action="{{ url_for('bulk_move_equipment') }}" data-dt-form>
+                    <label class="sr-only" for="equip-bulk-location">Move to</label>
+                    <select class="input dt-bulk-select" id="equip-bulk-location" name="location"
+                            onchange="if (this.value) { this.form.submit(); }">
+                        <option value="">Move to...</option>
+                        {% for room in locations %}
+                            <option value="{{ room }}">{{ room }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+                <button type="button" class="dt-btn" data-dt-export>Export</button>
+                <form method="POST" action="{{ url_for('bulk_delete_equipment') }}" data-dt-form>
+                    <button type="submit" class="dt-btn" data-tone="danger" data-dt-act="delete">Delete</button>
+                </form>
+            </div>
+
+            {#- Must live INSIDE the card: data-table.js looks for
+                [data-dt-confirm="delete"] in its own data-dt-root and,
+                finding none, deletes without asking. -#}
+            <dialog id="equip-confirm-delete" class="alert-dialog" data-dt-confirm="delete"
+                    aria-labelledby="equip-confirm-delete-title" aria-describedby="equip-confirm-delete-desc">
+                <div>
+                    <header>
+                        <figure><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></figure>
+                        <h2 id="equip-confirm-delete-title">Delete <span data-dt-confirm-count>this item</span>?</h2>
+                        <p id="equip-confirm-delete-desc">Removes the record and its purchase details. Cannot be undone.</p>
+                    </header>
+                    <footer>
+                        <button type="button" class="btn" data-variant="outline" data-dt-confirm-cancel>Cancel</button>
+                        <button type="button" class="btn" data-variant="destructive" data-dt-confirm-ok>Delete</button>
+                    </footer>
+                </div>
+            </dialog>
+        {% else %}
+            {#- Says what to do, not only that nothing is here: the
+                technicians filling this in are new to the app. -#}
+            <section>
+                <p class="text-sm text-muted">No equipment recorded yet. Use <span class="font-medium text-ink">Add equipment</span> to record the keyboards, mice, monitors, cables and chargers in each room.</p>
+            </section>
+        {% endif %}
+    </section>
+
+    {#- Add drawer. A serial is only allowed on a row of quantity 1; the
+        server refuses it too, and the form only explains why. -#}
+    <dialog id="equip-add-drawer" class="drawer" data-side="right"
+            aria-labelledby="equip-add-title" aria-describedby="equip-add-description">
+        <article>
+            <header>
+                <h2 id="equip-add-title">Add equipment</h2>
+                <p id="equip-add-description">Record one or more of the same item in a room.</p>
+            </header>
+            <section class="px-4">
+                <form method="POST" id="equip-add-form" action="{{ url_for('add_equipment') }}" class="sw-edit-fields">
+                    <div role="group" class="field">
+                        <label for="equip-add-category">Category *</label>
+                        <select class="input" id="equip-add-category">
+                            <option value="">Choose or add...</option>
+                            {% for category in equipment_categories %}
+                                <option value="{{ category }}">{{ category }}</option>
+                            {% endfor %}
+                            <option value="__new__">+ New category...</option>
+                        </select>
+                        <input class="input {% if not equipment_categories %}{% else %}hidden{% endif %}" type="text" id="equip-add-category-new"
+                               maxlength="30" placeholder="Keyboard" autocomplete="off" aria-label="New category" />
+                        <p class="text-xs text-muted">Keyboard, Mouse, Monitor, Ethernet cable, Charger.</p>
+                        <span id="equip-add-category-error" class="mt-1 block text-xs text-tone-bad hidden" role="alert">Pick a category, or choose "+ New category..." and type one.</span>
+                        <input type="hidden" name="category" id="equip-add-category-value" />
+                    </div>
+
+                    <div role="group" class="field">
+                        <label for="equip-add-manufacturer">Manufacturer</label>
+                        <input class="input" type="text" id="equip-add-manufacturer" name="manufacturer"
+                               maxlength="60" placeholder="Not recorded" autocomplete="off" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-add-model">Model</label>
+                        <input class="input" type="text" id="equip-add-model" name="model"
+                               maxlength="60" placeholder="Not recorded" autocomplete="off" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-add-quantity">Quantity</label>
+                        <input class="input" type="number" id="equip-add-quantity" name="quantity"
+                               min="1" max="999" value="1" />
+                        <p class="text-xs text-muted">Use a higher number for things nobody labels individually, like cables.</p>
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-add-serial">Serial number</label>
+                        <input class="input" type="text" id="equip-add-serial" name="serial_number"
+                               maxlength="60" placeholder="Not recorded" autocomplete="off" />
+                        <p class="text-xs text-muted" id="equip-add-serial-note">Only for a single item. A serial number cannot sit on a row with quantity above 1.</p>
+                    </div>
+
+                    {#- Neither control has a name: the script posts one
+                        value through the hidden field below. -#}
+                    <div role="group" class="field">
+                        <label for="equip-add-location">Location *</label>
+                        <select class="input" id="equip-add-location">
+                            <option value="">Choose or add...</option>
+                            {% for room in locations %}
+                                <option value="{{ room }}">{{ room }}</option>
+                            {% endfor %}
+                            <option value="__new__">+ New location...</option>
+                        </select>
+                        <input class="input hidden" type="text" id="equip-add-location-new"
+                               maxlength="{{ max_location_length }}" placeholder="Lab 1"
+                               autocomplete="off" aria-label="New location" />
+                        <p class="text-xs text-muted">The room this equipment lives in.</p>
+                        <span id="equip-add-location-error" class="mt-1 block text-xs text-tone-bad hidden" role="alert">Pick a location, or choose "+ New location..." and type one.</span>
+                        <input type="hidden" name="location" id="equip-add-location-value" />
+                    </div>
+
+                    <p class="mt-4 border-t border-line pt-4 text-sm font-medium text-ink">Asset record</p>
+                    <div role="group" class="field">
+                        <label for="equip-add-status">Condition</label>
+                        <select class="input" id="equip-add-status" name="asset_status">
+                            {% for status in allowed_asset_statuses %}
+                                <option value="{{ status }}">{{ status }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-add-purchase">Purchase date</label>
+                        <input class="input" type="date" id="equip-add-purchase" name="purchase_date" min="1990-01-01" max="2100-12-31" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-add-vendor">Vendor</label>
+                        <input class="input" type="text" id="equip-add-vendor" name="vendor" maxlength="40" placeholder="Not recorded" autocomplete="off" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-add-warranty">Warranty until</label>
+                        <input class="input" type="date" id="equip-add-warranty" name="warranty_until" min="1990-01-01" max="2100-12-31" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-add-notes">Notes</label>
+                        <input class="input" type="text" id="equip-add-notes" name="notes" maxlength="200" placeholder="Optional" autocomplete="off" />
+                    </div>
+                </form>
+            </section>
+            <footer>
+                <button type="button" class="btn" data-variant="outline" data-equip-add-close>Cancel</button>
+                <button type="submit" form="equip-add-form" class="btn">Add</button>
+            </footer>
+        </article>
+    </dialog>
+
+    {#- Details: half a record is not in the table, and a form opened only
+        to read a fact can change it by accident. Same drawer shape as Lab
+        Computers, so the two pages behave alike. -#}
+    <dialog id="equip-details-drawer" class="drawer" data-side="right"
+            aria-labelledby="equip-details-title" aria-describedby="equip-details-description">
+        <article>
+            <header>
+                <h2 id="equip-details-title"><span id="equip-details-heading"></span></h2>
+                <p id="equip-details-description">Everything recorded about this item.</p>
+            </header>
+            <section class="px-4">
+                <dl class="text-sm">
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Category</dt>
+                        <dd id="equip-details-category" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Manufacturer</dt>
+                        <dd id="equip-details-manufacturer" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Model</dt>
+                        <dd id="equip-details-model" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Serial number</dt>
+                        <dd id="equip-details-serial" class="text-right font-mono text-xs text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Quantity</dt>
+                        <dd id="equip-details-quantity" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Condition</dt>
+                        <dd id="equip-details-condition" class="text-right text-ink"></dd>
+                    </div>
+                </dl>
+
+                <p class="mt-4 border-t border-line pt-4 text-sm font-medium text-ink">Where it is</p>
+                <dl class="mt-2 text-sm">
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Location</dt>
+                        <dd id="equip-details-location" class="text-right text-ink"></dd>
+                    </div>
+                </dl>
+
+                <p class="mt-4 border-t border-line pt-4 text-sm font-medium text-ink">Asset record</p>
+                <dl class="mt-2 text-sm">
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Purchase date</dt>
+                        <dd id="equip-details-purchase" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Vendor</dt>
+                        <dd id="equip-details-vendor" class="text-right text-ink"></dd>
+                    </div>
+                    <div class="flex items-baseline justify-between gap-4 py-1">
+                        <dt class="text-muted">Warranty until</dt>
+                        <dd id="equip-details-warranty" class="text-right text-ink"></dd>
+                    </div>
+                </dl>
+
+                <p class="mt-4 border-t border-line pt-4 text-sm font-medium text-ink">Notes</p>
+                <p id="equip-details-notes" class="mt-1 text-sm text-ink"></p>
+            </section>
+            <footer>
+                <button type="button" class="btn" data-variant="outline" data-equip-details-close>Close</button>
+                <button type="button" class="btn" id="equip-details-edit">Edit</button>
+            </footer>
+        </article>
+    </dialog>
+
+    {#- Edit drawer: the same fields as Add, filled from the row. -#}
+    <dialog id="equip-edit-drawer" class="drawer" data-side="right"
+            aria-labelledby="equip-edit-title" aria-describedby="equip-edit-description">
+        <article>
+            <header>
+                <h2 id="equip-edit-title">Edit <span id="equip-edit-heading"></span></h2>
+                <p id="equip-edit-description">Change the details, or move it to another room.</p>
+            </header>
+            <section class="px-4">
+                <form method="POST" id="equip-edit-form" class="sw-edit-fields">
+                    <div role="group" class="field">
+                        <label for="equip-edit-category">Category *</label>
+                        <input class="input" type="text" id="equip-edit-category" name="category" maxlength="30" autocomplete="off" required />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-edit-location">Location *</label>
+                        <input class="input" type="text" id="equip-edit-location" name="location"
+                               maxlength="{{ max_location_length }}" list="equip-location-options"
+                               autocomplete="off" required />
+                        {#- A datalist, not a select: an edit usually
+                            moves to an existing room, but must not forbid
+                            a new one. -#}
+                        <datalist id="equip-location-options">
+                            {% for room in locations %}<option value="{{ room }}"></option>{% endfor %}
+                        </datalist>
+                        <p class="text-xs text-muted">Changing this moves the item to another room.</p>
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-edit-manufacturer">Manufacturer</label>
+                        <input class="input" type="text" id="equip-edit-manufacturer" name="manufacturer" maxlength="60" placeholder="Not recorded" autocomplete="off" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-edit-model">Model</label>
+                        <input class="input" type="text" id="equip-edit-model" name="model" maxlength="60" placeholder="Not recorded" autocomplete="off" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-edit-quantity">Quantity</label>
+                        <input class="input" type="number" id="equip-edit-quantity" name="quantity" min="1" max="999" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-edit-serial">Serial number</label>
+                        <input class="input" type="text" id="equip-edit-serial" name="serial_number" maxlength="60" placeholder="Not recorded" autocomplete="off" />
+                    </div>
+
+                    <p class="mt-4 border-t border-line pt-4 text-sm font-medium text-ink">Asset record</p>
+                    <div role="group" class="field">
+                        <label for="equip-edit-status">Condition</label>
+                        <select class="input" id="equip-edit-status" name="asset_status">
+                            {% for status in allowed_asset_statuses %}
+                                <option value="{{ status }}">{{ status }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-edit-purchase">Purchase date</label>
+                        <input class="input" type="date" id="equip-edit-purchase" name="purchase_date" min="1990-01-01" max="2100-12-31" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-edit-vendor">Vendor</label>
+                        <input class="input" type="text" id="equip-edit-vendor" name="vendor" maxlength="40" placeholder="Not recorded" autocomplete="off" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-edit-warranty">Warranty until</label>
+                        <input class="input" type="date" id="equip-edit-warranty" name="warranty_until" min="1990-01-01" max="2100-12-31" />
+                    </div>
+                    <div role="group" class="field">
+                        <label for="equip-edit-notes">Notes</label>
+                        <input class="input" type="text" id="equip-edit-notes" name="notes" maxlength="200" placeholder="Optional" autocomplete="off" />
+                    </div>
+                </form>
+            </section>
+            <footer>
+                <button type="button" class="btn" data-variant="outline" data-equip-edit-close>Cancel</button>
+                <button type="submit" form="equip-edit-form" class="btn">Save</button>
+            </footer>
+        </article>
+    </dialog>
+</div>
+
+<script>
+    /* Add drawer: two picker-or-type fields, and the serial rule. */
+    (function () {
+        var drawer = document.getElementById('equip-add-drawer');
+        var form = document.getElementById('equip-add-form');
+        var openButton = document.getElementById('equip-add-button');
+        if (!drawer || !form) { return; }
+
+        var serial = document.getElementById('equip-add-serial');
+        var serialNote = document.getElementById('equip-add-serial-note');
+        var quantity = document.getElementById('equip-add-quantity');
+
+        /* One factory for category and location, so a fix to either
+         * applies to both. */
+        function pickerOrType(selectId, textId, hiddenId, errorId) {
+            var picker = document.getElementById(selectId);
+            var custom = document.getElementById(textId);
+            var hidden = document.getElementById(hiddenId);
+            var errorLine = document.getElementById(errorId);
+            /* The .field wrapper is what carries data-invalid, which is how
+             * every other form in the app shows a bad field. */
+            var field = picker.closest ? picker.closest('.field') : null;
+
+            /* Written on every change, not only on submit: form.submit()
+             * called from script does not fire the submit event, so a value
+             * typed and submitted that way would post empty. */
+            function sync() {
+                hidden.value = picker.value === '__new__' ? custom.value.trim() : picker.value;
+                /* Clear the complaint as soon as it stops being true. */
+                if (hidden.value) { setInvalid(false); }
+            }
+
+            function activeControl() {
+                return picker.value === '__new__' ? custom : picker;
+            }
+
+            function setInvalid(bad) {
+                if (field) {
+                    if (bad) { field.setAttribute('data-invalid', ''); }
+                    else { field.removeAttribute('data-invalid'); }
+                }
+                /* Cleared off BOTH controls every time: otherwise the
+                 * dropdown keeps a stale aria-invalid after switching to
+                 * "+ New" and announces itself as broken forever. */
+                picker.removeAttribute('aria-invalid');
+                custom.removeAttribute('aria-invalid');
+                if (bad) { activeControl().setAttribute('aria-invalid', 'true'); }
+                if (errorLine) { errorLine.classList.toggle('hidden', !bad); }
+            }
+
+            /* Returns true when there is a value. Marks the field either way,
+             * so a fixed field un-marks itself on the next attempt. */
+            function validate() {
+                sync();
+                var ok = !!hidden.value;
+                setInvalid(!ok);
+                return ok;
+            }
+
+            function focusIt() { activeControl().focus(); }
+
+            function refresh(focusItToo) {
+                var isNew = picker.value === '__new__';
+                custom.classList.toggle('hidden', !isNew);
+                if (isNew) {
+                    if (focusItToo !== false) { custom.focus(); }
+                } else {
+                    custom.value = '';
+                }
+                sync();
+            }
+
+            picker.addEventListener('change', function () { refresh(true); });
+            custom.addEventListener('input', sync);
+            return {
+                picker: picker,
+                sync: sync,
+                refresh: refresh,
+                validate: validate,
+                focus: focusIt,
+                clearError: function () { setInvalid(false); }
+            };
+        }
+
+        var category = pickerOrType('equip-add-category', 'equip-add-category-new', 'equip-add-category-value', 'equip-add-category-error');
+        var location = pickerOrType('equip-add-location', 'equip-add-location-new', 'equip-add-location-value', 'equip-add-location-error');
+
+        /* A serial identifies ONE object: "40 cables, serial SN-1" claims
+         * all forty are the same cable. Disabled rather than hidden, so
+         * the reason stays on screen. */
+        function syncSerial() {
+            var many = (parseInt(quantity.value, 10) || 1) > 1;
+            serial.disabled = many;
+            if (many) { serial.value = ''; }
+            serialNote.textContent = many
+                ? 'Disabled - this row stands for ' + quantity.value + ' items, and a serial number identifies one.'
+                : 'Only for a single item. A serial number cannot sit on a row with quantity above 1.';
+        }
+
+        quantity.addEventListener('input', syncSerial);
+
+        /* Category and location are REQUIRED, but both post through a
+         * hidden input, and `required` there makes the browser refuse to
+         * submit while focusing nothing. So the check lives here, rather
+         * than a server rejection whose redirect loses everything typed.
+         * Both are checked, so one attempt reports every problem. */
+        form.addEventListener('submit', function (event) {
+            var categoryOk = category.validate();
+            var locationOk = location.validate();
+            if (categoryOk && locationOk) { return; }
+            event.preventDefault();
+            if (!categoryOk) { category.focus(); } else { location.focus(); }
+        });
+
+        function closeDrawer() {
+            if (!drawer.open) { return; }
+            drawer.setAttribute('data-closing', '');
+            window.setTimeout(function () {
+                drawer.removeAttribute('data-closing');
+                drawer.close();
+            }, 500);
+        }
+
+        if (openButton) {
+            openButton.addEventListener('click', function () {
+                form.reset();
+                /* reset() restores the markup defaults, which leaves every
+                 * DERIVED value stale - the two hidden fields and the
+                 * serial rule are computed, not typed. */
+                category.refresh(false);
+                location.refresh(false);
+                category.clearError();
+                location.clearError();
+                syncSerial();
+                drawer.showModal();
+                category.picker.focus();
+            });
+        }
+
+        drawer.addEventListener('click', function (event) {
+            if (event.target.closest('[data-equip-add-close]')) { closeDrawer(); return; }
+            if (event.target === drawer) { closeDrawer(); }
+        });
+        drawer.addEventListener('cancel', function (event) {
+            event.preventDefault();
+            closeDrawer();
+        });
+
+        syncSerial();
+    })();
+
+    /* Details drawer: read-only, filled from the row's attributes. */
+    (function () {
+        var panel = document.getElementById('equip-details-drawer');
+        if (!panel) { return; }
+
+        var heading = document.getElementById('equip-details-heading');
+        var notes = document.getElementById('equip-details-notes');
+        var editButton = document.getElementById('equip-details-edit');
+        var currentRow = null;
+
+        /* One loop, so a new field cannot forget the empty fallback. */
+        var FIELDS = {
+            'data-dt-edit-category': 'equip-details-category',
+            'data-dt-edit-manufacturer': 'equip-details-manufacturer',
+            'data-dt-edit-model': 'equip-details-model',
+            'data-dt-edit-serial': 'equip-details-serial',
+            'data-dt-edit-location': 'equip-details-location',
+            'data-detail-condition': 'equip-details-condition',
+            'data-dt-edit-purchase': 'equip-details-purchase',
+            'data-dt-edit-vendor': 'equip-details-vendor',
+            'data-dt-edit-warranty': 'equip-details-warranty'
+        };
+
+        function closePanel() {
+            if (!panel.open) { return; }
+            panel.setAttribute('data-closing', '');
+            window.setTimeout(function () {
+                panel.removeAttribute('data-closing');
+                panel.close();
+            }, 500);
+        }
+
+        document.addEventListener('dt:details', function (event) {
+            var row = event.detail && event.detail.row;
+            if (!row) { return; }
+            currentRow = row;
+
+            heading.textContent = (row.getAttribute('data-dt-edit-category') || 'Item')
+                + ' in ' + (row.getAttribute('data-dt-edit-location') || '');
+
+            Object.keys(FIELDS).forEach(function (attribute) {
+                var target = document.getElementById(FIELDS[attribute]);
+                if (!target) { return; }
+                var value = row.getAttribute(attribute) || '';
+                /* textContent, never innerHTML: a model name or vendor is
+                 * free text a technician typed, and is not markup. */
+                target.textContent = value || 'Not recorded';
+                target.classList.toggle('text-muted', !value);
+            });
+
+            /* Quantity is the one field with no empty state - the schema
+             * defaults it to 1, so a blank here would mean a broken row. */
+            var quantity = row.getAttribute('data-dt-edit-quantity') || '1';
+            document.getElementById('equip-details-quantity').textContent = quantity;
+
+            var noteText = row.getAttribute('data-dt-edit-notes') || '';
+            notes.textContent = noteText || 'None.';
+            notes.classList.toggle('text-muted', !noteText);
+
+            panel.showModal();
+        });
+
+        /* Re-dispatches the event the edit drawer listens for, so only one
+         * place knows how to fill the form. */
+        if (editButton) {
+            editButton.addEventListener('click', function () {
+                if (!currentRow) { return; }
+                var row = currentRow;
+                panel.removeAttribute('data-closing');
+                panel.close();
+                document.dispatchEvent(new CustomEvent('dt:edit', {
+                    bubbles: true,
+                    detail: { row: row, id: row.getAttribute('data-dt-id') }
+                }));
+            });
+        }
+
+        panel.addEventListener('click', function (event) {
+            if (event.target.closest('[data-equip-details-close]')) { closePanel(); return; }
+            if (event.target === panel) { closePanel(); }
+        });
+        panel.addEventListener('cancel', function (event) {
+            event.preventDefault();
+            closePanel();
+        });
+    })();
+
+    /* Edit drawer, filled from the row like every other table in the app. */
+    (function () {
+        var drawer = document.getElementById('equip-edit-drawer');
+        var form = document.getElementById('equip-edit-form');
+        if (!drawer || !form) { return; }
+
+        var heading = document.getElementById('equip-edit-heading');
+        var EDIT_URL = "{{ url_for('update_equipment', equipment_id=0) }}";
+
+        var FIELDS = {
+            'data-dt-edit-category': 'equip-edit-category',
+            'data-dt-edit-manufacturer': 'equip-edit-manufacturer',
+            'data-dt-edit-model': 'equip-edit-model',
+            'data-dt-edit-serial': 'equip-edit-serial',
+            'data-dt-edit-quantity': 'equip-edit-quantity',
+            'data-dt-edit-purchase': 'equip-edit-purchase',
+            'data-dt-edit-vendor': 'equip-edit-vendor',
+            'data-dt-edit-warranty': 'equip-edit-warranty',
+            'data-dt-edit-notes': 'equip-edit-notes'
+        };
+
+        function closeDrawer() {
+            if (!drawer.open) { return; }
+            drawer.setAttribute('data-closing', '');
+            window.setTimeout(function () {
+                drawer.removeAttribute('data-closing');
+                drawer.close();
+            }, 500);
+        }
+
+        document.addEventListener('dt:edit', function (event) {
+            var row = event.detail && event.detail.row;
+            if (!row) { return; }
+            /* The /0/ SEGMENT is the placeholder, not a trailing zero. */
+            form.action = EDIT_URL.replace('/0/', '/' + encodeURIComponent(event.detail.id) + '/');
+
+            heading.textContent = (row.getAttribute('data-dt-edit-category') || 'item')
+                + ' in ' + (row.getAttribute('data-dt-edit-location') || '');
+
+            Object.keys(FIELDS).forEach(function (attribute) {
+                var target = document.getElementById(FIELDS[attribute]);
+                if (target) { target.value = row.getAttribute(attribute) || ''; }
+            });
+
+            document.getElementById('equip-edit-location').value =
+                row.getAttribute('data-dt-edit-location') || '';
+            /* Empty means In use - the server resolves NULL that way and
+             * this select has no blank option, so the two agree. */
+            document.getElementById('equip-edit-status').value =
+                row.getAttribute('data-dt-edit-status') || 'In use';
+
+            drawer.showModal();
+            document.getElementById('equip-edit-category').focus();
+        });
+
+        drawer.addEventListener('click', function (event) {
+            if (event.target.closest('[data-equip-edit-close]')) { closeDrawer(); return; }
+            if (event.target === drawer) { closeDrawer(); }
+        });
+        drawer.addEventListener('cancel', function (event) {
+            event.preventDefault();
+            closeDrawer();
+        });
+    })();
+</script>
+<script defer src="{{ url_for('static', filename='js/data-table.js') }}"></script>
+{% endblock %}
