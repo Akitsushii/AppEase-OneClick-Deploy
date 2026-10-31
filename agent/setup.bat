@@ -4,18 +4,20 @@ setlocal EnableExtensions EnableDelayedExpansion
 REM ============================================================
 REM  AppEase Agent - one-shot setup for a new lab computer
 REM  1. Ensures a REAL Python is installed (ignores MS Store stub)
-REM  2. Copies agent.py to the system drive, e.g. C:\Appease\agent.py
-REM  3. Registers "AppEase Agent" scheduled task (runs at startup, whether
+REM  2. Asks for the AppEase server's address and checks it answers
+REM  3. Copies agent.py to the system drive, e.g. C:\Appease\agent.py,
+REM     with that address written into the installed copy
+REM  4. Registers "AppEase Agent" scheduled task (runs at startup, whether
 REM     logged on or not, as the user who started this script)
-REM  4. Starts the agent immediately
-REM  5. Installs Chocolatey if it is not already present
+REM  5. Starts the agent immediately
+REM  6. Installs Chocolatey if it is not already present
 REM
 REM  Re-running overwrites the file AND the task, and restarts a
-REM  running agent so the new code actually takes effect.
+REM  running agent so the new code actually takes effect. On a re-run
+REM  the address already in use is offered: press Enter to keep it.
 REM
-REM  The server address is NOT set here. It is SERVER_BASE_URL in
-REM  agent.py - edit it there before running this. The Done screen
-REM  shows the address the installed copy will use.
+REM  Nobody needs to edit agent.py by hand. If its SERVER_BASE_URL is
+REM  already a real address, that is offered as the default instead.
 REM
 REM  Run this from the folder that also contains agent.py.
 REM ============================================================
@@ -70,7 +72,7 @@ REM  be a different account, so a Python under one user's AppData is not
 REM  one the task can rely on. We only accept a Python that is
 REM  machine-wide (under Program Files). A per-user Python is treated as
 REM  "not usable" so we install machine-wide.
-echo [1/5] Checking for an existing machine-wide Python...
+echo [1/6] Checking for an existing machine-wide Python...
 call :FIND_PYTHON
 if defined PYEXE (
     for /f "delims=" %%V in ('""!PYEXE!" --version" 2^>^&1') do set "PYVER=%%V"
@@ -114,8 +116,41 @@ if not defined PYEXE (
 )
 echo       Using Python at: !PYEXE!
 
-REM ---------- Step 2: deploy agent.py ----------
-echo [2/5] Deploying agent.py to %INSTALLDIR% ...
+REM ---------- Step 2: which server? ----------
+REM  agent.py itself checks and saves the address (its --*-server options),
+REM  so the rules live in one tested place. Run from the SOURCE copy: the
+REM  installed one may be an older agent that would start polling instead.
+echo [2/6] AppEase server address...
+set "DEFAULTURL="
+for /f "delims=" %%U in ('""!PYEXE!" "%SRCAGENT%" --default-server "%SRCAGENT%" "%INSTALLDIR%\agent.py""') do set "DEFAULTURL=%%U"
+echo       Type the IP address of the computer running the AppEase server,
+echo       for example 192.168.1.10. Port 8080 is added for you.
+:ASK_SERVER
+set "ANSWER="
+if defined DEFAULTURL (
+    set /p "ANSWER=      Server address [press Enter for !DEFAULTURL!]: "
+) else (
+    set /p "ANSWER=      Server address: "
+)
+if not defined ANSWER set "ANSWER=!DEFAULTURL!"
+if not defined ANSWER goto ASK_SERVER
+set "SERVERURL="
+for /f "delims=" %%U in ('""!PYEXE!" "%SRCAGENT%" --check-server "!ANSWER!""') do set "SERVERURL=%%U"
+if not defined SERVERURL (
+    echo       Please try again.
+    goto ASK_SERVER
+)
+"!PYEXE!" "%SRCAGENT%" --probe-server "!SERVERURL!"
+if errorlevel 1 (
+    echo       The server did not answer. Check that it is turned on, that
+    echo       AppEase is running on it, and that the address is right.
+    choice /c YN /m "      Use !SERVERURL! anyway"
+    if errorlevel 2 goto ASK_SERVER
+)
+echo       Using !SERVERURL!
+
+REM ---------- Step 3: deploy agent.py ----------
+echo [3/6] Deploying agent.py to %INSTALLDIR% ...
 if not exist "%INSTALLDIR%" (
     mkdir "%INSTALLDIR%" || (
         echo ERROR: could not create %INSTALLDIR%.
@@ -128,10 +163,15 @@ copy /Y "%SRCAGENT%" "%INSTALLDIR%\agent.py" >nul || (
     pause
     exit /b 1
 )
+"!PYEXE!" "%INSTALLDIR%\agent.py" --set-server "!SERVERURL!" >nul || (
+    echo ERROR: could not save the server address in %INSTALLDIR%\agent.py.
+    pause
+    exit /b 1
+)
 echo       Copied to %INSTALLDIR%\agent.py
 
-REM ---------- Step 3: register (or overwrite) the scheduled task ----------
-echo [3/5] Registering scheduled task "%TASKNAME%" ...
+REM ---------- Step 4: register (or overwrite) the scheduled task ----------
+echo [4/6] Registering scheduled task "%TASKNAME%" ...
 
 set "PS1=%TEMP%\appease_task_%RANDOM%.ps1"
 > "%PS1%" echo $ErrorActionPreference = 'Stop'
@@ -153,7 +193,7 @@ if %PSRESULT% neq 0 (
     exit /b 1
 )
 
-echo [4/5] Starting the agent now ^(no reboot needed^)...
+echo [5/6] Starting the agent now ^(no reboot needed^)...
 REM  End any instance from a previous install BEFORE starting the new
 REM  one: the task ignores a start while one is running, so a re-run
 REM  would leave the OLD agent.py in memory until reboot, with no error.
@@ -164,8 +204,8 @@ REM  running and swallow the start below.
 timeout /t 2 /nobreak >nul 2>&1
 schtasks /run /tn "%TASKNAME%" >nul 2>&1
 
-REM ---------- Step 5: install Chocolatey (only if missing) ----------
-echo [5/5] Checking for Chocolatey...
+REM ---------- Step 6: install Chocolatey (only if missing) ----------
+echo [6/6] Checking for Chocolatey...
 where choco >nul 2>&1
 if %errorlevel% equ 0 (
     echo       Chocolatey already installed - skipping.
@@ -183,9 +223,9 @@ if %errorlevel% equ 0 (
 )
 
 REM ---------- Which server will this machine talk to? ----------
-REM  setup.bat never sets the address, so this is the one moment the
-REM  person running it sees what the machine will use. A machine pointed
-REM  at the wrong address looks exactly like a working one from its side.
+REM  Read back from the installed file, not echoed from what was typed: a
+REM  machine pointed at the wrong address looks exactly like a working one
+REM  from its side, so the Done screen shows what will really be used.
 REM
 REM  Read from the INSTALLED copy, which the task runs. Matched by name,
 REM  not line number, and the LAST match wins, as it does in Python. Not

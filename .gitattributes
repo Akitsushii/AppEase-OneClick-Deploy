@@ -44,6 +44,10 @@ tools/**/*.py text eol=lf
 *.db-shm binary
 *.pdf binary
 
+# Downloaded ON ITS OWN through GitHub's raw link, which serves the stored
+# bytes with no conversion. Stored as CRLF so that download runs in cmd.exe.
+install-appease.bat -text
+
 # Chocolatey's own records, copied byte for byte as test fixtures. Their line
 # endings are Chocolatey's - mixed CRLF and LF inside one file in places - and
 # t/test_choco_verify.py pins each file's hash, so git must never convert

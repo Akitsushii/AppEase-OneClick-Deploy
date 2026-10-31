@@ -32,7 +32,48 @@ work, and report back. Admins run everything from a web dashboard.
 
 ---
 
-## Server setup
+## Quick setup (Windows)
+
+For a lab technician who just wants it running. No editing of files.
+
+**On the server computer**
+
+1. Download **`install-appease.bat`** on its own: open it on GitHub and
+   click **Download raw file**. If Windows SmartScreen warns about it, click
+   **More info**, then **Run anyway**.
+2. Double-click it and click **Yes** when Windows asks for administrator
+   rights. It downloads the latest AppEase into `C:\AppEase`, then runs
+   `C:\AppEase\setup-server.bat`, which installs Python if needed, installs
+   AppEase's packages, creates `server/.env` with fresh secret keys, opens
+   ports 8080 and 80 in Windows Firewall, and puts a **Start AppEase**
+   shortcut on the desktop.
+3. Double-click **Start AppEase** on the desktop. Keep that window open
+   while AppEase is in use; closing it stops AppEase. The window shows the
+   addresses to open, and the browser opens the dashboard by itself.
+4. The first time, the window also prints the starting password for the
+   `admin` account. Sign in with it and choose your own password.
+
+**To update**, close the Start AppEase window and run
+`install-appease.bat` again. It only adds and replaces program files, so
+`server/.env`, the database, uploaded installers and photos are kept.
+
+Already have the AppEase folder (a clone or an unzipped copy)? Skip the
+download and double-click **`setup-server.bat`** inside it instead. Running
+it again is safe: it skips what is done and never replaces keys already set.
+
+**On each lab computer**
+
+1. Copy `agent/agent.py` and `agent/setup.bat` into one folder.
+2. Double-click **`setup.bat`**, click **Yes**, and type the server's IP
+   address when asked (the Start AppEase window shows it). Port 8080 is
+   added for you, and setup checks that the server answers before going on.
+
+Everything below is the same setup done by hand, for anyone who wants to
+see or change each step.
+
+---
+
+## Server setup (by hand)
 
 ### 1. Install the packages
 
@@ -105,17 +146,15 @@ afterwards.
 
 Do this on each lab PC.
 
-1. Edit `agent/agent.py` and replace `YOUR-SERVER-IP` in `SERVER_BASE_URL`
-   with the server's LAN address, keeping port 8080:
+1. Copy `agent.py` and `setup.bat` from `agent/` into one folder on the PC.
 
-   ```python
-   SERVER_BASE_URL = "http://YOUR-SERVER-IP:8080"
-   ```
-
-2. Copy `agent.py` and `setup.bat` from `agent/` into one folder on the PC and
-   run `setup.bat`. It asks for administrator rights, then:
+2. Run `setup.bat`. It asks for administrator rights, then:
    - installs a machine-wide Python if there is none,
-   - copies the agent to `C:\Appease\agent.py`,
+   - asks for the server's address (for example `192.168.1.10`; port 8080
+     is added) and checks that it answers. On a re-run it offers the
+     address already in use, so Enter keeps it,
+   - copies the agent to `C:\Appease\agent.py` with that address written
+     into its `SERVER_BASE_URL`,
    - registers an **AppEase Agent** scheduled task that runs at startup,
    - starts the agent, and
    - installs Chocolatey if it is missing.
@@ -161,6 +200,7 @@ agent/
 server/
   app.py                the Flask application and every route
   database.py           schema and migrations
+  server_setup.py       helpers for setup-server.bat and start-appease.bat
   .env.example          every setting, with what it does
   templates/            Jinja2 pages
   static/               CSS, JavaScript, fonts and images
@@ -169,5 +209,8 @@ server/
 t/                      the test suites; run_all.py runs them all
 tools/                  manual browser checks, outside the test suite
 build-css.bat           rebuilds tailwind.css
+install-appease.bat     downloads AppEase into C:\AppEase and runs setup-server.bat
+setup-server.bat        one-time server setup (Python, packages, .env, firewall)
+start-appease.bat       starts the server; keep its window open
 requirements.txt        the server's Python packages
 ```

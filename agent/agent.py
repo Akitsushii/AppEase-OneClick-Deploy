@@ -27,7 +27,8 @@ except ImportError:
     winreg = None
 
 # 8080 = app.py --prod (Waitress); 5000 (Flask dev) fails silently.
-# Replace YOUR-SERVER-IP with the AppEase server's LAN IP before setup.bat.
+# setup.bat asks for the server address and writes it here, in the
+# installed copy, so this placeholder is only ever seen in the repository.
 SERVER_BASE_URL = "http://YOUR-SERVER-IP:8080"
 POLL_INTERVAL_SECONDS = 10
 COMPUTER_HOSTNAME = socket.gethostname()
@@ -37,6 +38,145 @@ AGENT_ID_PATH = os.path.join(
     os.environ.get("ProgramData") or r"C:\ProgramData", "AppEase", "agent_id.txt"
 )
 AGENT_ID = None
+
+# ---- Server address, for setup.bat ----
+# setup.bat runs this file with one of the --*-server options below to read,
+# check and save the server address, so nobody has to open agent.py in an
+# editor. They run before logging is set up and exit straight away: no
+# agent.log, no agent ID, no network apart from --probe-server.
+SERVER_URL_PLACEHOLDER = "YOUR-SERVER-IP"
+DEFAULT_AGENT_PORT = 8080
+# The assignment line, matched by name rather than line number. Only the
+# quoted value is captured, so whatever follows it on the line survives.
+_SERVER_LINE = re.compile(r'^(SERVER_BASE_URL[ \t]*=[ \t]*)(["\'])([^"\'\r\n]*)\2', re.M)
+_HOST_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$")
+
+
+def normalize_server_url(text):
+    """What a technician typed, as the address the agent polls.
+
+    "192.168.1.10" -> "http://192.168.1.10:8080". Adds http:// and port 8080
+    when they are left out. Raises ValueError with a sentence fit to show on
+    screen when the text is not a server address.
+    """
+    value = (text or "").strip()
+    if not value:
+        raise ValueError("No address was typed.")
+    if "://" not in value:
+        value = "http://" + value
+    try:
+        parts = urlsplit(value)
+        port = parts.port
+    except ValueError:
+        raise ValueError("The port must be a number from 1 to 65535.")
+    scheme = parts.scheme.lower()
+    if scheme not in ("http", "https"):
+        raise ValueError("The address must start with http:// or https://, or with neither.")
+    if parts.username or parts.password or parts.query or parts.fragment or parts.path not in ("", "/"):
+        raise ValueError("Type only the server's address, for example 192.168.1.10")
+    host = parts.hostname or ""
+    if not _HOST_PATTERN.match(host):
+        raise ValueError("Type the server's address, for example 192.168.1.10")
+    if SERVER_URL_PLACEHOLDER.lower() in host.lower():
+        raise ValueError("Replace YOUR-SERVER-IP with the server's real address.")
+    if port is None:
+        port = DEFAULT_AGENT_PORT
+    if not 1 <= port <= 65535:
+        raise ValueError("The port must be a number from 1 to 65535.")
+    return f"{scheme}://{host}:{port}"
+
+
+def read_server_url(path):
+    """The SERVER_BASE_URL written in the agent file at path, or None if the
+    file or the line is missing. The LAST assignment wins, as in Python."""
+    try:
+        with open(path, "r", encoding="utf-8", newline="") as handle:
+            text = handle.read()
+    except OSError:
+        return None
+    found = _SERVER_LINE.findall(text)
+    return found[-1][2] if found else None
+
+
+def default_server_url(*paths):
+    """The first real address among these agent files, normalised, or None.
+    Placeholders and anything unreadable are skipped."""
+    for path in paths:
+        try:
+            return normalize_server_url(read_server_url(path))
+        except ValueError:
+            continue
+    return None
+
+
+def write_server_url(path, url):
+    """Write url into the SERVER_BASE_URL line of the agent file at path.
+
+    Only the quoted value changes: every other byte, line endings included,
+    stays as it was. Refuses rather than guess when the line is missing.
+    """
+    url = normalize_server_url(url)
+    with open(path, "r", encoding="utf-8", newline="") as handle:
+        text = handle.read()
+    updated, count = _SERVER_LINE.subn(lambda m: m.group(1) + m.group(2) + url + m.group(2), text)
+    if count == 0:
+        raise ValueError(f"No SERVER_BASE_URL line was found in {path}.")
+    with open(path, "w", encoding="utf-8", newline="") as handle:
+        handle.write(updated)
+    if read_server_url(path) != url:
+        raise ValueError(f"The address could not be saved in {path}.")
+    return url
+
+
+def probe_server_url(url, timeout=4):
+    """(True, message) when something answers on the server's port, else
+    (False, the reason). A TCP connection only: nothing is registered."""
+    parts = urlsplit(url)
+    try:
+        with socket.create_connection((parts.hostname, parts.port), timeout=timeout):
+            return True, f"The server at {url} answered."
+    except OSError as exc:
+        return False, f"Nothing answered at {url} ({exc.__class__.__name__})."
+
+
+def _server_cli(argv):
+    """setup.bat's entry points. Returns an exit code, or None when argv is
+    not a server option and the agent should start as normal.
+
+      --check-server TEXT          print TEXT normalised; 1 if not an address
+      --default-server PATH...     print the first real address in PATHs
+      --set-server URL [PATH]      save URL into PATH (default: this file)
+      --probe-server URL           1 if nothing answers on its port
+    """
+    if not argv or argv[0] not in ("--check-server", "--default-server", "--set-server", "--probe-server"):
+        return None
+    option, values = argv[0], argv[1:]
+    try:
+        if option == "--check-server":
+            print(normalize_server_url(values[0] if values else ""))
+        elif option == "--default-server":
+            found = default_server_url(*values)
+            if found:
+                print(found)
+        elif option == "--set-server":
+            if not values:
+                raise ValueError("No address was given.")
+            target = values[1] if len(values) > 1 else os.path.abspath(__file__)
+            print(write_server_url(target, values[0]))
+        else:
+            reachable, message = probe_server_url(normalize_server_url(values[0] if values else ""))
+            print(message)
+            return 0 if reachable else 1
+    except (ValueError, OSError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    _server_exit = _server_cli(sys.argv[1:])
+    if _server_exit is not None:
+        sys.exit(_server_exit)
 
 # ---- Logging setup ----
 # Rotates (~1 MB x 3) so a 24/7 poller never fills the disk.
